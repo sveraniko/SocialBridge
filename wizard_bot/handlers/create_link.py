@@ -5,6 +5,33 @@ from wizard_bot.wizard.state import apply_back, apply_step, ensure_campaign_key,
 from wizard_bot.wizard.validators import validate_slug, validate_start_param
 
 
+async def _refresh_created_item(session: dict, sb_client, settings, *, fallback_item: dict | None = None) -> dict | None:
+    key = ensure_campaign_key(session)
+    content_ref = f"campaign:{key}"
+
+    payload, error = await run_sb_call(
+        lambda: sb_client.list_content_map(
+            channel=settings.WIZARD_DEFAULT_CHANNEL,
+            is_active=None,
+            limit=200,
+            offset=0,
+        ),
+        "Failed to refresh campaign state",
+    )
+    if error is None and isinstance(payload, dict):
+        for item in payload.get("items") if isinstance(payload.get("items"), list) else []:
+            if item.get("content_ref") == content_ref and item.get("channel") == settings.WIZARD_DEFAULT_CHANNEL:
+                item["shortlink"] = (
+                    f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
+                )
+                return item
+
+    item = fallback_item or (session.get("created_item") if isinstance(session.get("created_item"), dict) else None)
+    if isinstance(item, dict):
+        item["shortlink"] = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
+    return item if isinstance(item, dict) else None
+
+
 async def start_create(panel, redis, chat_id: int) -> None:
     data = await reset_session(redis, chat_id)
     await render_step(panel, chat_id, data)
@@ -61,16 +88,45 @@ async def handle_wizard_callback(data: str, chat_id: int, panel, redis, sb_clien
         if error:
             session["error"] = error
         elif isinstance(item, dict):
-            item["shortlink"] = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
-            session["created_item"] = item
+            refreshed_item = await _refresh_created_item(session, sb_client, settings, fallback_item=item)
+            if refreshed_item:
+                session["created_item"] = refreshed_item
             apply_step(session, "result")
-    elif data == "wiz:disable":
+    elif data in {"wiz:disable", "wiz:enable"}:
         key = ensure_campaign_key(session)
-        _, error = await run_sb_call(
-            lambda: sb_client.disable_content_map(channel=settings.WIZARD_DEFAULT_CHANNEL, content_ref=f"campaign:{key}"),
-            "Failed to disable campaign",
-        )
-        session["error"] = error or "Campaign disabled."
+        content_ref = f"campaign:{key}"
+        created_item = session.get("created_item") if isinstance(session.get("created_item"), dict) else {}
+
+        if data == "wiz:disable":
+            _, error = await run_sb_call(
+                lambda: sb_client.disable_content_map(channel=settings.WIZARD_DEFAULT_CHANNEL, content_ref=content_ref),
+                "Failed to disable campaign",
+            )
+            status_line = "⛔ Campaign disabled" if error is None else None
+        else:
+            _, error = await run_sb_call(
+                lambda: sb_client.upsert_content_map(
+                    channel=settings.WIZARD_DEFAULT_CHANNEL,
+                    content_ref=content_ref,
+                    start_param=session.get("start_param"),
+                    slug=created_item.get("slug") or session.get("slug"),
+                    meta=created_item.get("meta") if isinstance(created_item.get("meta"), dict) else {
+                        "mode": str(session.get("mode")),
+                        "kind": str(session.get("kind")),
+                        "wizard": True,
+                    },
+                    is_active=True,
+                ),
+                "Failed to enable campaign",
+            )
+            status_line = "✅ Campaign enabled" if error is None else None
+
+        refreshed_item = await _refresh_created_item(session, sb_client, settings)
+        if refreshed_item:
+            session["created_item"] = refreshed_item
+        if status_line:
+            session["result_status"] = status_line
+        session["error"] = error
     elif data == "wiz:preview":
         key = ensure_campaign_key(session)
         result, error = await run_sb_call(

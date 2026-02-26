@@ -1,3 +1,4 @@
+import logging
 import time
 
 from app.adapters.hashing import payload_hash
@@ -10,6 +11,8 @@ from app.repositories.inbound_event_repo import InboundEventRepository
 
 HIT_TEXT = "Готово. Вот ссылка 👇"
 CATALOG_TEXT = "Открыл каталог. Выберите товар 👇"
+
+logger = logging.getLogger(__name__)
 
 
 class ResolveService:
@@ -47,10 +50,17 @@ class ResolveService:
         if result == ResolveResult.FALLBACK_CATALOG:
             parsed = parse_start_param_from_text(data.text)
             if parsed:
-                dynamic = await self.content_repo.get_or_create_dynamic_mapping(parsed)
-                start_param = dynamic.start_param
-                slug = dynamic.slug
-                result = ResolveResult.FALLBACK_PAYLOAD
+                dynamic_count = await self.content_repo.count_dynamic_created_last_24h()
+                if dynamic_count >= self.settings.DYNAMIC_MAPPING_MAX_PER_DAY:
+                    logger.warning(
+                        "Dynamic mapping daily limit reached; degrading to fallback_catalog",
+                        extra={"dynamic_count_24h": dynamic_count, "limit": self.settings.DYNAMIC_MAPPING_MAX_PER_DAY},
+                    )
+                else:
+                    dynamic = await self.content_repo.get_or_create_dynamic_mapping(parsed)
+                    start_param = dynamic.start_param
+                    slug = dynamic.slug
+                    result = ResolveResult.FALLBACK_PAYLOAD
 
         reply_text = HIT_TEXT if result != ResolveResult.FALLBACK_CATALOG else CATALOG_TEXT
         output = ResolveOutput(

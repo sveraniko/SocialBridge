@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import error_response
 from app.core.security import validate_admin_token
 from app.db.session import get_db_session
 from app.repositories.content_map_repo import ContentMapRepository
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/v1/admin/content-map", tags=["admin"], dependencies=
 @router.get("")
 async def list_content_map(
     channel: str | None = None,
-    is_active: bool | None = None,
-    limit: int = Query(default=50, le=500),
+    is_active: bool | None = True,
+    limit: int = Query(default=200, le=1000),
     offset: int = 0,
     session: AsyncSession = Depends(get_db_session),
 ):
@@ -27,21 +27,16 @@ async def list_content_map(
 async def upsert_content_map(payload: dict, session: AsyncSession = Depends(get_db_session)):
     service = AdminService(ContentMapRepository(session))
     try:
-        item = await service.upsert(payload)
+        item, result = await service.upsert(payload)
         await session.commit()
-        return {"item": item}
+        return {"item": item, "result": result}
     except AdminValidationError as exc:
         await session.rollback()
-        return JSONResponse(
-            status_code=400,
-            content={"error": {"code": exc.code, "message": exc.message, "field": exc.field}},
-        )
+        extra = {"field": exc.field} if exc.field else {}
+        return error_response(400, exc.message, code=exc.code, **extra)
     except IntegrityError:
         await session.rollback()
-        return JSONResponse(
-            status_code=409,
-            content={"error": {"code": "conflict", "message": "slug already exists", "field": "slug"}},
-        )
+        return error_response(409, "slug already exists", code="conflict", field="slug")
 
 
 def _extract_import_items(payload: object) -> list[dict]:
@@ -63,10 +58,8 @@ async def import_content_map(payload: object, session: AsyncSession = Depends(ge
     try:
         items = _extract_import_items(payload)
     except AdminValidationError as exc:
-        return JSONResponse(
-            status_code=400,
-            content={"error": {"code": exc.code, "message": exc.message, "field": exc.field}},
-        )
+        extra = {"field": exc.field} if exc.field else {}
+        return error_response(400, exc.message, code=exc.code, **extra)
 
     for idx, item in enumerate(items):
         try:
@@ -89,8 +82,12 @@ async def import_content_map(payload: object, session: AsyncSession = Depends(ge
 
 
 @router.get("/export")
-async def export_content_map(session: AsyncSession = Depends(get_db_session)):
-    return await AdminService(ContentMapRepository(session)).export()
+async def export_content_map(
+    channel: str | None = None,
+    is_active: bool | None = None,
+    session: AsyncSession = Depends(get_db_session),
+):
+    return await AdminService(ContentMapRepository(session)).export(channel=channel, is_active=is_active)
 
 
 @router.post("/disable")
@@ -98,10 +95,7 @@ async def disable_content_map(payload: dict, session: AsyncSession = Depends(get
     channel = payload.get("channel")
     content_ref = payload.get("content_ref")
     if not isinstance(channel, str) or not channel or not isinstance(content_ref, str) or not content_ref:
-        return JSONResponse(
-            status_code=400,
-            content={"error": {"code": "bad_request", "message": "channel and content_ref are required"}},
-        )
+        return error_response(400, "channel and content_ref are required", code="bad_request")
     ok = await AdminService(ContentMapRepository(session)).disable(channel, content_ref)
     await session.commit()
     return {"result": "disabled" if ok else "not_found"}

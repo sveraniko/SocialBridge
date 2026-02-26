@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     IP_HASH_SALT: str | None = None
     RETENTION_INBOUND_DAYS: int = 90
     RETENTION_CLICK_DAYS: int = 365
+    DYNAMIC_MAPPING_MAX_PER_DAY: int = 500
     LOG_LEVEL: str = "INFO"
 
     @field_validator("IP_HASH_SALT")

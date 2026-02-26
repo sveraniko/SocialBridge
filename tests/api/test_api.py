@@ -84,9 +84,13 @@ def client(monkeypatch):
     async def fake_dynamic(self, start_param):
         return SimpleNamespace(start_param=start_param, slug=f"dyn_{start_param.lower()}")
 
+    async def fake_dynamic_count(self):
+        return 0
+
     monkeypatch.setattr(ContentMapRepository, "find_active_by_channel_ref", fake_find)
     monkeypatch.setattr(ContentMapRepository, "find_active_by_slug", fake_find_slug)
     monkeypatch.setattr(ContentMapRepository, "get_or_create_dynamic_mapping", fake_dynamic)
+    monkeypatch.setattr(ContentMapRepository, "count_dynamic_created_last_24h", fake_dynamic_count)
     monkeypatch.setattr(InboundEventRepository, "insert_dedup", fake_insert)
     monkeypatch.setattr(ClickEventRepository, "create", fake_click)
 
@@ -293,6 +297,112 @@ def test_admin_disable_missing_payload_keys_returns_400(client):
     assert response.json()["error"]["code"] == "bad_request"
 
 
+
+def test_admin_upsert_returns_result_created_or_updated(client, monkeypatch):
+    call_state = {"existing": False}
+
+    async def fake_find_by_channel_ref(self, channel, content_ref):
+        if call_state["existing"]:
+            return SimpleNamespace(channel=channel, content_ref=content_ref)
+        return None
+
+    async def fake_upsert(self, payload):
+        return SimpleNamespace(
+            id="1",
+            channel=payload["channel"],
+            content_ref=payload["content_ref"],
+            start_param=payload.get("start_param"),
+            slug=payload["slug"],
+            is_active=True,
+            meta=payload.get("meta", {}),
+            created_at=None,
+            updated_at=None,
+        )
+
+    monkeypatch.setattr(ContentMapRepository, "find_by_channel_ref", fake_find_by_channel_ref)
+    monkeypatch.setattr(ContentMapRepository, "upsert", fake_upsert)
+
+    created = client.post(
+        "/v1/admin/content-map/upsert",
+        json={"channel": "ig", "content_ref": "campaign:new", "start_param": "LOOK_NEW"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert created.status_code == 200
+    assert created.json()["result"] == "created"
+
+    call_state["existing"] = True
+    updated = client.post(
+        "/v1/admin/content-map/upsert",
+        json={"channel": "ig", "content_ref": "campaign:new", "start_param": "LOOK_NEW"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["result"] == "updated"
+
+
+def test_admin_content_map_pagination_default_and_max(client, monkeypatch):
+    captured = {}
+
+    async def fake_list_items(self, channel, is_active, limit, offset):
+        captured["default"] = (is_active, limit, offset)
+        return [], 0
+
+    monkeypatch.setattr(ContentMapRepository, "list_items", fake_list_items)
+
+    default_response = client.get("/v1/admin/content-map", headers={"X-Admin-Token": "change-me-admin"})
+    assert default_response.status_code == 200
+    assert default_response.json()["limit"] == 200
+    assert captured["default"] == (True, 200, 0)
+
+    max_response = client.get("/v1/admin/content-map?limit=1000", headers={"X-Admin-Token": "change-me-admin"})
+    assert max_response.status_code == 200
+
+    over_max_response = client.get("/v1/admin/content-map?limit=1001", headers={"X-Admin-Token": "change-me-admin"})
+    assert over_max_response.status_code == 422
+    assert over_max_response.json()["error"]["code"] == "validation_error"
+    assert "request_id" in over_max_response.json()["error"]
+
+
+def test_admin_export_filters_are_forwarded(client, monkeypatch):
+    captured = {}
+
+    async def fake_export(self, channel=None, is_active=None):
+        captured["channel"] = channel
+        captured["is_active"] = is_active
+        return []
+
+    monkeypatch.setattr(ContentMapRepository, "export", fake_export)
+
+    response = client.get(
+        "/v1/admin/content-map/export?channel=ig&is_active=true",
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert captured == {"channel": "ig", "is_active": True}
+
+
+def test_dynamic_mapping_limit_degrades_to_catalog(client, monkeypatch):
+    calls = {"dynamic_create": 0}
+
+    async def fake_find(self, channel, content_ref):
+        return None
+
+    async def fake_dynamic_count(self):
+        return 500
+
+    async def fake_dynamic_create(self, start_param):
+        calls["dynamic_create"] += 1
+        return SimpleNamespace(start_param=start_param, slug=f"dyn_{start_param.lower()}")
+
+    monkeypatch.setattr(ContentMapRepository, "find_active_by_channel_ref", fake_find)
+    monkeypatch.setattr(ContentMapRepository, "count_dynamic_created_last_24h", fake_dynamic_count)
+    monkeypatch.setattr(ContentMapRepository, "get_or_create_dynamic_mapping", fake_dynamic_create)
+
+    response = client.post("/v1/mc/resolve", json={"channel": "ig", "text": "LOOK_OVER_LIMIT"})
+    assert response.status_code == 200
+    assert response.json()["result"] == "fallback_catalog"
+    assert calls["dynamic_create"] == 0
+
 def test_ready_ok(client):
     response = client.get("/ready")
     assert response.status_code == 200
@@ -319,3 +429,4 @@ def test_admin_import_invalid_payload_error_format(client):
     body = response.json()
     assert body["error"]["code"] == "bad_request"
     assert body["error"]["field"] == "items"
+    assert "request_id" in body["error"]

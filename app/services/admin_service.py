@@ -21,8 +21,10 @@ class AdminService:
 
     async def upsert(self, payload: dict):
         clean_payload = self._validate(payload)
+        exists = await self.content_repo.find_by_channel_ref(clean_payload["channel"], clean_payload["content_ref"])
         obj = await self.content_repo.upsert(clean_payload)
-        return self.serialize(obj)
+        result = "updated" if exists else "created"
+        return self.serialize(obj), result
 
     async def import_item(self, item: dict) -> str:
         clean_item = self._validate(item)
@@ -30,8 +32,8 @@ class AdminService:
         await self.content_repo.upsert(clean_item)
         return "updated" if exists else "created"
 
-    async def export(self):
-        return [self.serialize(x) for x in await self.content_repo.export()]
+    async def export(self, channel: str | None = None, is_active: bool | None = None):
+        return [self.serialize(x) for x in await self.content_repo.export(channel=channel, is_active=is_active)]
 
     async def disable(self, channel: str, content_ref: str) -> bool:
         return await self.content_repo.disable(channel, content_ref)

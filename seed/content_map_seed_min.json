@@ -1,0 +1,14 @@
+[
+  {
+    "channel": "ig",
+    "content_ref": "campaign:catalog",
+    "start_param": null,
+    "slug": "catalog"
+  },
+  {
+    "channel": "generic",
+    "content_ref": "campaign:catalog",
+    "start_param": null,
+    "slug": "catalog"
+  }
+]

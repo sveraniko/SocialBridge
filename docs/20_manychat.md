@@ -86,8 +86,8 @@ Slug = короткая метка shortlink’а (`dress001`, `spring26`, `cata
   - `X-MC-Token: <shared_secret>` (опционально, но желательно)
   - (если надо) `X-Request-Source: manychat`
 
-### 5.2 Body (рекомендуемый шаблон)
-Формируй тело запроса так, чтобы SocialBridge получил **стабильный минимум**:
+### 5.2 Body (рекомендуемый шаблон, копируй как есть)
+Формируй тело запроса по контракту `/v1/mc/resolve`:
 
 ```json
 {
@@ -103,17 +103,19 @@ Slug = короткая метка shortlink’а (`dress001`, `spring26`, `cata
 ```
 
 **Примечания:**
-- Реальные плейсхолдеры ManyChat могут отличаться по названию. Смысл один: передать `contact_id`, `flow_id`, и текст пользователя (если есть).
-- Если trigger не даёт `last_text_input` (например, comment), можно передать `comment_text` или пустую строку. SocialBridge справится.
+- Если в твоём шаблоне ManyChat другое имя переменной текста (`{{message.text}}`, `{{comment_text}}`), подставь его в поле `text`.
+- Если текста нет, передай пустую строку: `"text": ""`.
 
-### 5.3 Response mapping (как “забрать” ответ)
-External Request должен сохранять ответ в переменные/поля:
+### 5.3 Response mapping (обязательно)
+В External Request map response fields в Custom Fields:
 - `sb_last_url` ← `response.url`
+- `sb_reply_text` ← `response.reply_text`
+
+Рекомендуется дополнительно сохранять:
 - `sb_last_start_param` ← `response.start_param`
 - `sb_last_tag` ← `response.tag`
-- (опционально) `sb_reply_text` ← `response.reply_text`
 
-После этого блок “Send message” использует `sb_last_url` и `sb_reply_text`.
+После этого блок “Send message” использует `{{sb_reply_text}}` и кнопку/ссылку `{{sb_last_url}}`.
 
 ---
 
@@ -244,3 +246,19 @@ Flow должен быть короткий:
 - [ ] resolve возвращает url/start_param стабильно
 - [ ] редирект /t/{slug} пишет click_event
 - [ ] Telegram deeplink открывает нужный объект в SIS
+
+
+## 13) Первый IG flow за 15 минут (чек-лист)
+1. Подними инфраструктуру: `docker compose up -d --build`.
+2. Прогони миграции: `docker compose exec app alembic upgrade head`.
+3. Импортируй минимальный seed:
+   `python scripts/admin_import_map.py --base-url http://localhost:8000 --token <ADMIN_TOKEN> --file seed/content_map_seed_min.json`.
+4. Проверь резолв каталога:
+   `python scripts/admin_resolve_preview.py --base-url http://localhost:8000 --token <ADMIN_TOKEN> --channel ig --content-ref campaign:catalog --text "hi"`.
+5. В ManyChat создай Custom Fields: `sb_channel`, `sb_content_ref`, `sb_last_url`, `sb_reply_text`.
+6. Создай flow `SB_IG_CAMP_DRESS001`.
+7. В блоке Set Custom Fields выставь: `sb_channel=ig`, `sb_content_ref=campaign:dress001`.
+8. Добавь External Request с body из секции 5.2 и mapping из 5.3.
+9. В Send Message вставь `{{sb_reply_text}}` и кнопку `Купить` на `{{sb_last_url}}`.
+10. Протести путь целиком: триггер в IG → ManyChat reply → клик `/t/dress001` → редирект в `https://t.me/<SIS_BOT_USERNAME>?start=DRESS001`.
+

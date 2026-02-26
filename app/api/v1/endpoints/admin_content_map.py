@@ -16,7 +16,7 @@ router = APIRouter(prefix="/v1/admin/content-map", tags=["admin"], dependencies=
 @router.get("")
 async def list_content_map(
     channel: str | None = None,
-    is_active: bool | None = True,
+    is_active: bool | None = None,
     limit: int = Query(default=200, le=1000),
     offset: int = 0,
     session: AsyncSession = Depends(get_db_session),

@@ -10,16 +10,44 @@ def main_menu_keyboard() -> dict:
         "inline_keyboard": [
             [_button("Create Link", "nav:CREATE_LINK")],
             [_button("Campaigns", f"nav:{routes.CAMPAIGNS_LIST}")],
+            [_button("Backup / Export", "ops:export")],
+            [_button("Restore / Import", "ops:import")],
+            [_button("Status", "ops:status")],
             [_button("Clean Chat", "act:clean")],
         ]
     }
 
 
-def campaigns_keyboard() -> dict:
+def campaigns_keyboard(items: list[dict], offset: int, limit: int, total: int) -> dict:
+    rows: list[list[dict]] = []
+    for item in items:
+        slug = str(item.get("slug") or "")
+        ref = str(item.get("content_ref") or "-")
+        label = slug or ref
+        rows.append([_button(f"• {label[:45]}", f"camp:view:{slug or ref}")])
+
+    nav_row: list[dict] = []
+    if offset > 0:
+        nav_row.append(_button("Prev", f"camp:page:{max(0, offset - limit)}"))
+    if offset + len(items) < total:
+        nav_row.append(_button("Next", f"camp:page:{offset + limit}"))
+    if nav_row:
+        rows.append(nav_row)
+
+    rows.append([_button("Refresh", f"camp:page:{offset}")])
+    rows.append([_button("Back", "act:back"), _button("Clean Chat", "act:clean")])
+    return {"inline_keyboard": rows}
+
+
+def campaign_view_keyboard(is_active: bool) -> dict:
+    toggle_text = "Disable" if is_active else "Enable"
+    toggle_action = "camp:disable" if is_active else "camp:enable"
     return {
         "inline_keyboard": [
-            [_button("Refresh", "act:refresh_campaigns")],
-            [_button("Back", "act:back"), _button("Clean Chat", "act:clean")],
+            [_button(toggle_text, toggle_action)],
+            [_button("Resolve Preview", "camp:preview")],
+            [_button("Back to list", "act:back")],
+            [_button("Main Menu", "nav:MAIN"), _button("Clean Chat", "act:clean")],
         ]
     }
 

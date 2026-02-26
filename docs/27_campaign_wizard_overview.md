@@ -2,7 +2,7 @@
 
 ## Purpose
 `wizard_bot` is a Telegram admin-only helper for operating SocialBridge content mapping in a phone-first flow.
-PR2 adds full Create Link/Campaign CRUD wizard screens (inline-only), plus result actions (disable and resolve preview).
+PR3 extends PR2 with operator tools for backup/restore, campaign enable/disable from browse view, and service status checks.
 
 ## Security model
 - Access is restricted by Telegram user id whitelist from `WIZARD_ADMIN_IDS`.
@@ -17,41 +17,64 @@ PR2 adds full Create Link/Campaign CRUD wizard screens (inline-only), plus resul
   - `wiz:chat:{chat_id}:unauth:notified`
 - Unauthorized message UX: one `UNAUTHORIZED_TEXT` notice per chat every 24h.
 
-## PR2 inline screens
+## PR3 inline screens and actions (inline-only)
 1. **MAIN**
    - `Create Link`
    - `Campaigns`
+   - `Backup / Export`
+   - `Restore / Import`
+   - `Status`
    - `Clean Chat`
 
-2. **Create Link wizard**
-   - Step 1: choose mode (`0` direct shortlink, `1` BUY+code, `2` comment→DM mapping)
-   - Step 2: choose kind (`product`, `look`, `catalog`)
-   - Step 3: start_param input (product/look validated, catalog = NULL)
-   - Step 4: slug mode (`auto`, `custom`, `skip`)
-   - Step 5: confirm (`Create`, `Back`, `Cancel`)
+2. **Campaigns list (phone-first paging)**
+   - First page shown with `WIZARD_CAMPAIGNS_PAGE_LIMIT`
+   - `Next` / `Prev` paging by offset
+   - Each campaign line is a button opening **Campaign View**
 
-3. **Result panel after create**
-   - Shows shortlink (`WIZARD_PUBLIC_BASE_URL/t/<slug>`)
-   - Mode-specific operator output:
-     - Mode 0: link copy
-     - Mode 1: BUY template copy
-     - Mode 2: ManyChat operator snippet + response mapping fields
+3. **Campaign View panel**
+   - Displays: `channel`, `content_ref`, `start_param` (`NULL -> Catalog`), `slug`, `is_active`
+   - Displays shortlink: `{WIZARD_PUBLIC_BASE_URL}/t/{slug}`
    - Actions:
-     - `Disable campaign`
+     - `Disable` / `Enable` (toggle)
      - `Resolve Preview`
+     - `Back to list`
      - `Main Menu`
      - `Clean Chat`
 
-## API integration in PR2
-- `GET /v1/admin/content-map` (campaign list)
-- `POST /v1/admin/content-map/upsert` (create/update mapping)
-- `POST /v1/admin/content-map/disable` (disable mapping)
-- `POST /v1/admin/resolve-preview` (preview resolver result)
+4. **Backup / Export**
+   - Calls `GET /v1/admin/content-map/export`
+   - Bot sends JSON document:
+     - filename: `content_map_backup_YYYYMMDD_HHMM.json`
+   - Sent document message id is registered in chat message registry for `Clean Chat`
 
-Created mappings default to channel `ig` and include metadata:
-```json
-{"mode":"0|1|2","kind":"product|look|catalog","wizard":true}
-```
+5. **Restore / Import**
+   - Bot enters awaiting document state: `awaiting_document=import_content_map`
+   - Admin uploads JSON document (`array` OR `{"items":[...]}`)
+   - Bot downloads via Telegram `getFile` + file endpoint
+   - Calls `POST /v1/admin/content-map/import`
+   - Shows summary panel: `created/updated/failed` and first 5 errors
+
+6. **Status**
+   - `/health` status (`200/503`)
+   - `/ready` status (`200/503`)
+   - total campaigns count (`GET /v1/admin/content-map` total)
+   - dynamic mappings for last 24h (approx):
+     - export `channel=generic,is_active=true`
+     - count where `content_ref` starts with `dyn:` and `created_at` in last 24h
+   - dynamic limit label:
+     - `DYNAMIC_MAPPING_MAX_PER_DAY` if available
+     - otherwise `limit configured on server`
+
+## Wizard create flow behavior updates in PR3
+- Create/upsert always sends `is_active=true` to avoid re-creating disabled campaigns as disabled.
+- Disable still uses `POST /v1/admin/content-map/disable`.
+- Enable uses upsert with `is_active=true` (no new API endpoint).
+
+## UX guarantees
+- No reply keyboards, only inline keyboards.
+- `Back` must move exactly one step back (wizard step or nav stack route).
+- `Clean Chat` deletes all bot-created registered messages (panels and documents) and resets active panel + session.
+- SocialBridge HTTP errors are shown in friendly panel text and do not crash wizard flow.
 
 ## Local run
 1. Configure env vars in `.env`:
@@ -72,17 +95,26 @@ Created mappings default to channel `ig` and include metadata:
    ```
 4. Open Telegram, send `/start` to bot.
 
-## Quick operator path (create DRESS001 link)
+## Operator quick workflows
+### Export backup from bot
 1. `/start`
-2. Tap `Create Link`
-3. Select `Mode 0 · Direct shortlink`
-4. Select `Product`
-5. Send text: `DRESS001`
-6. Choose `Auto` slug (or `Custom` and send slug)
-7. Tap `Create`
-8. Copy shortlink from result panel.
+2. Tap `Backup / Export`
+3. Download sent `content_map_backup_*.json` file from chat.
 
-## Notes
-- UX stays inline-only (no reply keyboards).
-- `Back` always moves exactly one step back.
-- `Clean Chat` removes all registered bot messages and resets wizard session.
+### Import backup file
+1. `/start`
+2. Tap `Restore / Import`
+3. Upload JSON backup document
+4. Read import summary panel (`created/updated/failed`, first errors)
+
+### Enable/Disable a campaign
+1. `/start`
+2. Tap `Campaigns`
+3. Open campaign in list
+4. Tap `Disable` or `Enable`
+5. Optional: tap `Resolve Preview` to validate mapping behavior.
+
+### Status panel
+1. `/start`
+2. Tap `Status`
+3. Check health/ready statuses, total campaigns, and recent dynamic mapping count.

@@ -21,6 +21,11 @@ def default_session() -> dict:
         "slug": None,
         "slug_mode": "auto",
         "awaiting_input": None,
+        "awaiting_document": None,
+        "campaigns_items": [],
+        "campaigns_offset": 0,
+        "campaigns_limit": 50,
+        "campaign_view": None,
         "error": None,
         "created_item": None,
     }
@@ -85,6 +90,7 @@ def apply_step(data: dict, step: str) -> dict:
     data["step"] = step
     data["history"] = push_step_local(list(data.get("history") or [DEFAULT_STEP]), step)
     data["awaiting_input"] = None
+    data["awaiting_document"] = None
     data["error"] = None
     return data
 
@@ -94,5 +100,6 @@ def apply_back(data: dict) -> dict:
     data["history"] = new_history
     data["step"] = step
     data["awaiting_input"] = None
+    data["awaiting_document"] = None
     data["error"] = None
     return data

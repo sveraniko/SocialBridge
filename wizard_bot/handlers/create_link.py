@@ -1,3 +1,4 @@
+from wizard_bot.handlers.ops_tools import run_sb_call
 from wizard_bot.wizard.panels import render_step
 from wizard_bot.wizard.state import apply_back, apply_step, ensure_campaign_key, load_session, reset_session, save_session
 from wizard_bot.wizard.validators import validate_slug, validate_start_param
@@ -44,30 +45,47 @@ async def handle_wizard_callback(data: str, chat_id: int, panel, redis, sb_clien
             "kind": str(session.get("kind")),
             "wizard": True,
         }
-        item = await sb_client.upsert_content_map(
-            channel=settings.WIZARD_DEFAULT_CHANNEL,
-            content_ref=content_ref,
-            start_param=session.get("start_param"),
-            slug=session.get("slug"),
-            meta=payload,
+
+        item, error = await run_sb_call(
+            lambda: sb_client.upsert_content_map(
+                channel=settings.WIZARD_DEFAULT_CHANNEL,
+                content_ref=content_ref,
+                start_param=session.get("start_param"),
+                slug=session.get("slug"),
+                meta=payload,
+                is_active=True,
+            ),
+            "Failed to create campaign",
         )
-        item["shortlink"] = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
-        session["created_item"] = item
-        apply_step(session, "result")
+        if error:
+            session["error"] = error
+        elif isinstance(item, dict):
+            item["shortlink"] = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
+            session["created_item"] = item
+            apply_step(session, "result")
     elif data == "wiz:disable":
         key = ensure_campaign_key(session)
-        await sb_client.disable_content_map(channel=settings.WIZARD_DEFAULT_CHANNEL, content_ref=f"campaign:{key}")
-        session["error"] = "Campaign disabled."
+        _, error = await run_sb_call(
+            lambda: sb_client.disable_content_map(channel=settings.WIZARD_DEFAULT_CHANNEL, content_ref=f"campaign:{key}"),
+            "Failed to disable campaign",
+        )
+        session["error"] = error or "Campaign disabled."
     elif data == "wiz:preview":
         key = ensure_campaign_key(session)
-        result = await sb_client.resolve_preview(
-            channel=settings.WIZARD_DEFAULT_CHANNEL,
-            content_ref=f"campaign:{key}",
-            text="preview",
+        result, error = await run_sb_call(
+            lambda: sb_client.resolve_preview(
+                channel=settings.WIZARD_DEFAULT_CHANNEL,
+                content_ref=f"campaign:{key}",
+                text="preview",
+            ),
+            "Failed to run resolve preview",
         )
-        session["error"] = (
-            f"Preview: result={result.get('result')} url={result.get('url')} start_param={result.get('start_param') or 'NULL'}"
-        )
+        if error:
+            session["error"] = error
+        elif isinstance(result, dict):
+            session["error"] = (
+                f"Preview: result={result.get('result')} url={result.get('url')} start_param={result.get('start_param') or 'NULL'}"
+            )
     await save_session(redis, chat_id, session)
     await render_step(panel, chat_id, session)
     return True

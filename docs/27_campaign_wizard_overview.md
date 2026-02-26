@@ -67,8 +67,24 @@ PR3 extends PR2 with operator tools for backup/restore, campaign enable/disable 
 
 ## Wizard create flow behavior updates in PR3
 - Create/upsert always sends `is_active=true` to avoid re-creating disabled campaigns as disabled.
+- Result screen actions include `Disable campaign`, `Enable campaign`, `Resolve Preview`, `Main Menu`, and `Clean Chat` (inline-only).
 - Disable still uses `POST /v1/admin/content-map/disable`.
 - Enable uses upsert with `is_active=true` (no new API endpoint).
+- After enable/disable, the bot refreshes campaign state and edits the same panel with a short status line (`✅ Campaign enabled` / `⛔ Campaign disabled`).
+
+### Result screen example (textual screenshot)
+```text
+Campaign created ✅
+Shortlink: http://localhost:8000/t/dress001
+Link for bio/story/pinned comment: http://localhost:8000/t/dress001
+
+✅ Campaign enabled
+
+[Disable campaign]
+[Enable campaign]
+[Resolve Preview]
+[Main Menu] [Clean Chat]
+```
 
 ## UX guarantees
 - No reply keyboards, only inline keyboards.

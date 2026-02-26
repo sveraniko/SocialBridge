@@ -61,6 +61,9 @@ class AdminService:
             raise AdminValidationError("item must be an object")
         clean_payload = dict(payload)
 
+        # Strip server-managed fields that must not be set on insert/update
+        for key in ("id", "created_at", "updated_at"):
+            clean_payload.pop(key, None)
         channel = clean_payload.get("channel")
         if not isinstance(channel, str) or not channel:
             raise AdminValidationError("channel is required", field="channel")

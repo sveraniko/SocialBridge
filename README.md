@@ -274,6 +274,15 @@ Auth: `X-Admin-Token: ...`
 
 ---
 
+## Quick start
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose exec api alembic upgrade head
+curl -s http://localhost:8000/health
+curl -s http://localhost:8000/ready
+```
+
 ## Quick local run (SB-API-01)
 1. Copy env:
    ```bash
@@ -291,6 +300,7 @@ Auth: `X-Admin-Token: ...`
 ## Smoke test
 ```bash
 curl -s http://localhost:8000/health
+curl -s http://localhost:8000/ready
 curl -s -X POST http://localhost:8000/v1/admin/content-map/upsert \
   -H 'Content-Type: application/json' -H 'X-Admin-Token: change-me-admin' \
   -d '{"channel":"ig","content_ref":"campaign:dress001","start_param":"DRESS001","slug":"dress001","is_active":true,"meta":{}}'

@@ -92,8 +92,11 @@ async def render_step(panel, chat_id: int, data: dict) -> None:
                     "Map response: sb_last_url <- url, sb_reply_text <- reply_text",
                 ]
             )
+        status_line = data.get("result_status")
+        if status_line:
+            lines.extend(["", status_line])
         text = "\n".join(lines)
-        kb = result_keyboard()
+        kb = result_keyboard(bool(item.get("is_active", True)))
     else:
         text = "Campaign Wizard\n\nChoose an action:"
         kb = main_menu_keyboard()

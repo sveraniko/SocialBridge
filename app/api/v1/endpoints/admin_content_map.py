@@ -50,7 +50,7 @@ async def import_content_map(items: list[dict], session: AsyncSession = Depends(
     errors = []
     for idx, item in enumerate(items):
         try:
-            async with session.begin_nested():
+            async with session.begin():
                 result = await service.import_item(item)
             if result == "created":
                 created += 1
@@ -58,13 +58,10 @@ async def import_content_map(items: list[dict], session: AsyncSession = Depends(
                 updated += 1
         except ValueError as exc:
             failed += 1
-            await session.rollback()
             errors.append({"index": idx, "code": "bad_request", "message": str(exc)})
         except IntegrityError:
             failed += 1
-            await session.rollback()
             errors.append({"index": idx, "code": "conflict", "message": "slug already exists"})
-    await session.commit()
     return {"created": created, "updated": updated, "failed": failed, "errors": errors}
 
 

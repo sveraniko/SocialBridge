@@ -1,4 +1,9 @@
+import sys
+
 from fastapi import FastAPI
+
+if sys.version_info < (3, 12):
+    raise RuntimeError("Python 3.12+ required")
 
 from app.api.v1.router import api_router
 from app.core.errors import register_error_handlers

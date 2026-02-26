@@ -80,10 +80,13 @@ def slug_choice_keyboard() -> dict:
     }
 
 
-def result_keyboard() -> dict:
+def result_keyboard(is_active: bool) -> dict:
+    toggle_row = [_button("Disable campaign", "wiz:disable")] if is_active else [_button("Enable campaign", "wiz:enable")]
+    secondary_row = [_button("Enable campaign", "wiz:enable")] if is_active else [_button("Disable campaign", "wiz:disable")]
     return {
         "inline_keyboard": [
-            [_button("Disable campaign", "wiz:disable")],
+            toggle_row,
+            secondary_row,
             [_button("Resolve Preview", "wiz:preview")],
             [_button("Main Menu", "nav:MAIN"), _button("Clean Chat", "act:clean")],
         ]

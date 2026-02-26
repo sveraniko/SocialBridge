@@ -23,6 +23,9 @@ class FakeContentRepo:
         self.dynamic[slug] = obj
         return obj
 
+    async def count_dynamic_created_last_24h(self):
+        return 0
+
     async def find_active_by_slug(self, slug):
         if slug == "dress1":
             return SimpleNamespace(id="1", start_param="DRESS1")

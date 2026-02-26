@@ -11,6 +11,15 @@ from app.repositories.inbound_event_repo import InboundEventRepository
 
 
 class FakeSession:
+    def begin(self):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
     async def commit(self):
         return None
 

@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 from app.core.config import Settings
@@ -8,47 +6,7 @@ from app.services.redirect_service import RedirectService
 from app.services.resolve_service import ResolveService
 
 
-class FakeContentRepo:
-    def __init__(self):
-        self.dynamic = {}
-
-    async def find_active_by_channel_ref(self, channel, content_ref):
-        if content_ref == "campaign:hit":
-            return SimpleNamespace(start_param="DRESS1", slug="dress1")
-        return None
-
-    async def get_or_create_dynamic_mapping(self, start_param):
-        slug = f"dyn_{start_param.lower()}"
-        obj = SimpleNamespace(start_param=start_param, slug=slug)
-        self.dynamic[slug] = obj
-        return obj
-
-    async def count_dynamic_created_last_24h(self):
-        return 0
-
-    async def find_active_by_slug(self, slug):
-        if slug == "dress1":
-            return SimpleNamespace(id="1", start_param="DRESS1")
-        if slug in self.dynamic:
-            return SimpleNamespace(id="2", start_param=self.dynamic[slug].start_param)
-        return None
-
-
-class FakeInboundRepo:
-    def __init__(self):
-        self.saved = None
-
-    async def insert_dedup(self, payload):
-        self.saved = payload
-
-
-class FakeClickRepo:
-    def __init__(self):
-        self.saved = None
-
-    async def create(self, payload):
-        self.saved = payload
-
+from tests.fakes.repos_fake import FakeClickEventRepo, FakeContentMapRepo, FakeInboundEventRepo
 
 @pytest.mark.asyncio
 async def test_resolve_hit():
@@ -59,8 +17,8 @@ async def test_resolve_hit():
         ADMIN_TOKEN="a",
         MC_TOKEN="m",
     )
-    inbound = FakeInboundRepo()
-    service = ResolveService(settings, FakeContentRepo(), inbound)
+    inbound = FakeInboundEventRepo()
+    service = ResolveService(settings, FakeContentMapRepo(), inbound)
     out = await service.resolve(
         {"channel": "ig", "content_ref": "campaign:hit"},
         ResolveInput("ig", "campaign:hit", None, None, None, None, {"channel": "ig"}),
@@ -79,9 +37,9 @@ async def test_resolve_fallback_payload_creates_dynamic_mapping_and_redirect_wor
         ADMIN_TOKEN="a",
         MC_TOKEN="m",
     )
-    content_repo = FakeContentRepo()
-    inbound = FakeInboundRepo()
-    click = FakeClickRepo()
+    content_repo = FakeContentMapRepo()
+    inbound = FakeInboundEventRepo()
+    click = FakeClickEventRepo()
     resolve_service = ResolveService(settings, content_repo, inbound)
     redirect_service = RedirectService(settings, content_repo, click)
 
@@ -108,8 +66,8 @@ async def test_redirect_miss_goes_catalog():
         ADMIN_TOKEN="a",
         MC_TOKEN="m",
     )
-    click = FakeClickRepo()
-    service = RedirectService(settings, FakeContentRepo(), click)
+    click = FakeClickEventRepo()
+    service = RedirectService(settings, FakeContentMapRepo(), click)
     target = await service.resolve_redirect("unknown", "ua", None, None)
     assert target == "https://t.me/sisbot"
     assert click.saved["meta"]["miss"] is True

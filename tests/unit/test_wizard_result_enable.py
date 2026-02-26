@@ -3,6 +3,7 @@ import json
 import pytest
 
 from wizard_bot.handlers.create_link import handle_wizard_callback
+from tests.fakes.socialbridge_admin_client_fake import FakeSocialBridgeAdminClient
 
 
 class FakeRedis:
@@ -26,39 +27,6 @@ class FakePanel:
         self.keyboard = keyboard
 
 
-class FakeSBClient:
-    def __init__(self):
-        self.upsert_calls = []
-        self.disable_calls = []
-        self.items = [
-            {
-                "channel": "ig",
-                "content_ref": "campaign:dress001",
-                "start_param": "DRESS001",
-                "slug": "dress001",
-                "is_active": False,
-                "meta": {"wizard": True},
-            }
-        ]
-
-    async def upsert_content_map(self, **kwargs):
-        self.upsert_calls.append(kwargs)
-        for item in self.items:
-            if item["channel"] == kwargs["channel"] and item["content_ref"] == kwargs["content_ref"]:
-                item.update(kwargs)
-        return kwargs
-
-    async def disable_content_map(self, channel: str, content_ref: str):
-        self.disable_calls.append((channel, content_ref))
-        for item in self.items:
-            if item["channel"] == channel and item["content_ref"] == content_ref:
-                item["is_active"] = False
-        return {"result": "disabled"}
-
-    async def list_content_map(self, **kwargs):
-        return {"items": self.items, "total": len(self.items), "limit": 200, "offset": 0}
-
-
 class FakeSettings:
     WIZARD_DEFAULT_CHANNEL = "ig"
     WIZARD_PUBLIC_BASE_URL = "http://localhost:8000"
@@ -68,7 +36,16 @@ class FakeSettings:
 async def test_result_enable_calls_upsert_with_is_active_true_when_initially_inactive():
     redis = FakeRedis()
     panel = FakePanel()
-    sb_client = FakeSBClient()
+    sb_client = FakeSocialBridgeAdminClient(items=[
+        {
+            "channel": "ig",
+            "content_ref": "campaign:dress001",
+            "start_param": "DRESS001",
+            "slug": "dress001",
+            "is_active": False,
+            "meta": {"wizard": True},
+        }
+    ])
     chat_id = 900
     redis.db[f"wiz:chat:{chat_id}:session"] = json.dumps(
         {
@@ -94,7 +71,16 @@ async def test_result_enable_calls_upsert_with_is_active_true_when_initially_ina
 async def test_result_panel_reflects_state_and_status_line_after_toggle():
     redis = FakeRedis()
     panel = FakePanel()
-    sb_client = FakeSBClient()
+    sb_client = FakeSocialBridgeAdminClient(items=[
+        {
+            "channel": "ig",
+            "content_ref": "campaign:dress001",
+            "start_param": "DRESS001",
+            "slug": "dress001",
+            "is_active": False,
+            "meta": {"wizard": True},
+        }
+    ])
     chat_id = 901
     redis.db[f"wiz:chat:{chat_id}:session"] = json.dumps(
         {

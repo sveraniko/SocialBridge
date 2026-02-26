@@ -1,5 +1,14 @@
+from app.domain.slugging import derive_slug
 from app.domain.validators import is_valid_slug, is_valid_start_param
 from app.repositories.content_map_repo import ContentMapRepository
+
+
+class AdminValidationError(ValueError):
+    def __init__(self, message: str, field: str | None = None, code: str = "bad_request"):
+        super().__init__(message)
+        self.message = message
+        self.field = field
+        self.code = code
 
 
 class AdminService:
@@ -11,14 +20,14 @@ class AdminService:
         return {"items": [self.serialize(x) for x in items], "total": total, "limit": limit, "offset": offset}
 
     async def upsert(self, payload: dict):
-        self._validate(payload)
-        obj = await self.content_repo.upsert(payload)
+        clean_payload = self._validate(payload)
+        obj = await self.content_repo.upsert(clean_payload)
         return self.serialize(obj)
 
     async def import_item(self, item: dict) -> str:
-        self._validate(item)
-        exists = await self.content_repo.find_by_channel_ref(item["channel"], item["content_ref"])
-        await self.content_repo.upsert(item)
+        clean_item = self._validate(item)
+        exists = await self.content_repo.find_by_channel_ref(clean_item["channel"], clean_item["content_ref"])
+        await self.content_repo.upsert(clean_item)
         return "updated" if exists else "created"
 
     async def export(self):
@@ -42,17 +51,30 @@ class AdminService:
         }
 
     @staticmethod
-    def _validate(payload: dict) -> None:
-        channel = payload.get("channel")
-        content_ref = payload.get("content_ref")
-        slug = payload.get("slug")
-        start_param = payload.get("start_param")
-        if not isinstance(channel, str) or not channel:
-            raise ValueError("channel is required")
-        if not isinstance(content_ref, str) or not content_ref:
-            raise ValueError("content_ref is required")
-        if not isinstance(slug, str) or not is_valid_slug(slug):
-            raise ValueError("invalid slug")
-        if start_param is not None and not is_valid_start_param(start_param):
-            raise ValueError("invalid start_param")
+    def _validate(payload: dict) -> dict:
+        if not isinstance(payload, dict):
+            raise AdminValidationError("item must be an object")
+        clean_payload = dict(payload)
 
+        channel = clean_payload.get("channel")
+        if not isinstance(channel, str) or not channel:
+            raise AdminValidationError("channel is required", field="channel")
+
+        content_ref = clean_payload.get("content_ref")
+        if not isinstance(content_ref, str) or not content_ref:
+            raise AdminValidationError("content_ref is required", field="content_ref")
+
+        start_param = clean_payload.get("start_param")
+        if start_param is not None and not is_valid_start_param(start_param):
+            raise AdminValidationError("invalid start_param", field="start_param")
+
+        slug = clean_payload.get("slug")
+        if slug is None or (isinstance(slug, str) and not slug.strip()):
+            clean_payload["slug"] = derive_slug(content_ref=content_ref, start_param=start_param)
+        elif not isinstance(slug, str) or not is_valid_slug(slug):
+            raise AdminValidationError("invalid slug", field="slug")
+
+        if not is_valid_slug(clean_payload["slug"]):
+            raise AdminValidationError("invalid slug", field="slug")
+
+        return clean_payload

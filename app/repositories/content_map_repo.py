@@ -1,7 +1,7 @@
 from hashlib import sha256
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.content_map import ContentMap
@@ -24,15 +24,14 @@ class ContentMapRepository:
         return (await self.session.execute(q)).scalar_one_or_none()
 
     async def list_items(self, channel: str | None, is_active: bool | None, limit: int, offset: int):
-        q = select(ContentMap)
-        c = select(func.count(ContentMap.id))
+        base_filter = []
         if channel:
-            q = q.where(ContentMap.channel == channel)
-            c = c.where(ContentMap.channel == channel)
+            base_filter.append(ContentMap.channel == channel)
         if is_active is not None:
-            q = q.where(ContentMap.is_active.is_(is_active))
-            c = c.where(ContentMap.is_active.is_(is_active))
-        q = q.order_by(ContentMap.updated_at.desc()).limit(limit).offset(offset)
+            base_filter.append(ContentMap.is_active.is_(is_active))
+
+        q = select(ContentMap).where(*base_filter).order_by(ContentMap.updated_at.desc()).limit(limit).offset(offset)
+        c = select(func.count()).select_from(ContentMap).where(*base_filter)
         rows = (await self.session.execute(q)).scalars().all()
         total = (await self.session.execute(c)).scalar_one()
         return rows, total

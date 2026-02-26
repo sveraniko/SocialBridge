@@ -6,6 +6,7 @@ import pytest
 from wizard_bot.handlers.create_link import handle_wizard_input
 from wizard_bot.main import _handle_document_message
 from wizard_bot.wizard.state import session_key
+from tests.fakes.socialbridge_admin_client_fake import FakeSocialBridgeAdminClient
 
 
 class FakeRedis:
@@ -42,15 +43,6 @@ class FakeTelegram:
         return b'[{"channel":"telegram","content_ref":"campaign:a"}]'
 
 
-class FakeSBClient:
-    def __init__(self):
-        self.import_calls = 0
-
-    async def import_content_map(self, items: list[dict]):
-        self.import_calls += 1
-        return {"imported": len(items), "created": len(items), "updated": 0}
-
-
 @pytest.mark.asyncio
 async def test_awaiting_input_lock_allows_single_consumer():
     redis = FakeRedis()
@@ -82,7 +74,7 @@ async def test_document_import_deduplicates_same_file_id():
     redis = FakeRedis()
     panel = FakePanel()
     telegram = FakeTelegram()
-    sb_client = FakeSBClient()
+    sb_client = FakeSocialBridgeAdminClient()
     chat_id = 202
     redis.db[session_key(chat_id)] = json.dumps(
         {
@@ -103,4 +95,4 @@ async def test_document_import_deduplicates_same_file_id():
 
     assert consumed_first is True
     assert consumed_second is True
-    assert sb_client.import_calls == 1
+    assert len(sb_client.import_calls) == 1

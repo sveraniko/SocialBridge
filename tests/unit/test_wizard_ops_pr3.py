@@ -4,6 +4,7 @@ import pytest
 
 from wizard_bot.handlers.create_link import handle_wizard_callback
 from wizard_bot.handlers.ops_tools import parse_import_payload
+from tests.fakes.socialbridge_admin_client_fake import FakeSocialBridgeAdminClient
 
 
 class FakeRedis:
@@ -27,18 +28,6 @@ class FakeSettings:
     WIZARD_PUBLIC_BASE_URL = "http://localhost:8000"
 
 
-class FakeSBClient:
-    def __init__(self):
-        self.last_upsert = None
-
-    async def upsert_content_map(self, **kwargs):
-        self.last_upsert = kwargs
-        return {"slug": "dress001"}
-
-    async def list_content_map(self, **kwargs):
-        return {"items": []}
-
-
 @pytest.mark.parametrize(
     "payload,expected_len",
     [
@@ -56,7 +45,7 @@ def test_parse_import_payload_accepts_array_and_wrapper(payload, expected_len):
 async def test_wizard_create_upsert_sets_is_active_true():
     redis = FakeRedis()
     panel = FakePanel()
-    sb_client = FakeSBClient()
+    sb_client = FakeSocialBridgeAdminClient()
     chat_id = 77
     redis.db[f"wiz:chat:{chat_id}:session"] = json.dumps(
         {
@@ -72,5 +61,5 @@ async def test_wizard_create_upsert_sets_is_active_true():
     handled = await handle_wizard_callback("wiz:create", chat_id, panel, redis, sb_client, FakeSettings())
 
     assert handled is True
-    assert sb_client.last_upsert is not None
-    assert sb_client.last_upsert["is_active"] is True
+    assert sb_client.upsert_calls
+    assert sb_client.upsert_calls[-1]["is_active"] is True

@@ -3,6 +3,7 @@ import json
 import pytest
 
 from wizard_bot.handlers.menu import handle_callback
+from tests.fakes.socialbridge_admin_client_fake import FakeSocialBridgeAdminClient
 
 
 class FakeRedis:
@@ -33,20 +34,6 @@ class FakeMessenger:
         return 1
 
 
-class FakeSBClient:
-    def __init__(self):
-        self.disable_calls = []
-        self.enable_calls = []
-
-    async def disable_content_map(self, channel: str, content_ref: str):
-        self.disable_calls.append((channel, content_ref))
-        return {"result": "disabled"}
-
-    async def upsert_content_map(self, **kwargs):
-        self.enable_calls.append(kwargs)
-        return {"is_active": True, "slug": kwargs.get("slug")}
-
-
 class FakeSettings:
     WIZARD_CAMPAIGNS_PAGE_LIMIT = 50
     WIZARD_DEFAULT_CHANNEL = "ig"
@@ -59,7 +46,7 @@ async def test_campaign_toggle_calls_disable_and_enable_clients():
     panel = FakePanel()
     telegram = FakeTelegram()
     messenger = FakeMessenger()
-    sb_client = FakeSBClient()
+    sb_client = FakeSocialBridgeAdminClient()
     chat_id = 11
     redis.db[f"wiz:chat:{chat_id}:session"] = json.dumps(
         {
@@ -79,5 +66,5 @@ async def test_campaign_toggle_calls_disable_and_enable_clients():
     await handle_callback("camp:enable", chat_id, panel, redis, telegram, messenger, sb_client, FakeSettings())
 
     assert sb_client.disable_calls == [("ig", "campaign:dress001")]
-    assert len(sb_client.enable_calls) == 1
-    assert sb_client.enable_calls[0]["is_active"] is True
+    assert len(sb_client.upsert_calls) == 1
+    assert sb_client.upsert_calls[0]["is_active"] is True

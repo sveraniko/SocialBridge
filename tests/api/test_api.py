@@ -214,3 +214,33 @@ def test_admin_disable_missing_payload_keys_returns_400(client):
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "bad_request"
+
+
+def test_ready_ok(client):
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["checks"]["database"] == "ok"
+
+
+def test_admin_forbidden_error_format(client):
+    response = client.get("/v1/admin/content-map")
+    assert response.status_code == 403
+    body = response.json()
+    assert "error" in body
+    assert "detail" not in body
+    assert body["error"]["code"] == "forbidden"
+    assert "request_id" in body["error"]
+
+
+def test_validation_error_format(client):
+    response = client.post(
+        "/v1/admin/content-map/import",
+        json={"channel": "ig"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert "error" in body
+    assert "detail" not in body
+    assert body["error"]["code"] == "validation_error"
+    assert "request_id" in body["error"]

@@ -15,11 +15,9 @@
 ## 1) Компоненты деплоя
 ### 1.1 Сервисы (docker-compose)
 - `api` — FastAPI SocialBridge
-- `db` — Postgres
-- `redis` — опционально (rate-limit/cache)
-- `proxy` — опционально (nginx/traefik/caddy) для TLS/headers
+- `postgres` — Postgres
 
-Минимальный прод: `api + db`.
+В текущем `docker-compose.yml` минимальный стек: `api + postgres`. Redis/proxy можно добавлять отдельно (вне базового compose).
 
 ---
 
@@ -38,8 +36,7 @@
 - `CLICK_LOG_IP=false` (по умолчанию)
 - `RETENTION_INBOUND_DAYS=90`
 - `RETENTION_CLICK_DAYS=365`
-- `RATE_LIMIT_ENABLED=true`
-- `RATE_LIMIT_REDIS_URL=redis://redis:6379/0` (если используем Redis)
+- `DYNAMIC_MAPPING_MAX_PER_DAY=500`
 
 ### 2.3 .env.example
 В репо обязателен `.env.example` без секретов, только шаблоны.
@@ -183,6 +180,7 @@ docker compose exec api alembic upgrade head
 SQL:
 - inbound: 90 дней
 - click: 365 дней
+- dynamic mappings (`sb_content_map` где `meta.dynamic=true`): держать под контролем, регулярный ops cleanup по дате `created_at` (например старше 180 дней при подтверждённой неактуальности).
 
 ### 9.2 Backup
 Минимум для прод:

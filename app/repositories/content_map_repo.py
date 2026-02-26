@@ -1,6 +1,6 @@
 from hashlib import sha256
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,8 +60,27 @@ class ContentMapRepository:
         await self.session.flush()
         return True
 
-    async def export(self) -> list[ContentMap]:
-        return (await self.session.execute(select(ContentMap).order_by(ContentMap.channel))).scalars().all()
+    async def export(self, channel: str | None = None, is_active: bool | None = None) -> list[ContentMap]:
+        filters = []
+        if channel:
+            filters.append(ContentMap.channel == channel)
+        if is_active is not None:
+            filters.append(ContentMap.is_active.is_(is_active))
+        q = select(ContentMap).where(*filters).order_by(ContentMap.channel, ContentMap.content_ref)
+        return (await self.session.execute(q)).scalars().all()
+
+    async def count_dynamic_created_last_24h(self) -> int:
+        q = text(
+            """
+            SELECT count(*)
+            FROM sb_content_map
+            WHERE channel = 'generic'
+              AND content_ref LIKE 'dyn:%'
+              AND coalesce((meta->>'dynamic')::boolean, false) = true
+              AND created_at >= now() - interval '24 hours'
+            """
+        )
+        return int((await self.session.execute(q)).scalar_one() or 0)
 
     async def get_or_create_dynamic_mapping(self, start_param: str) -> ContentMap:
         content_ref = f"dyn:{start_param}"

@@ -145,6 +145,8 @@ ManyChat и другие системы любят ретраи. Мы должн
 - `fallback_payload` — извлекли start_param из текста
 - `fallback_catalog` — отправили в каталог
 
+Операционный guardrail: при превышении дневного лимита на динамические маппинги (`DYNAMIC_MAPPING_MAX_PER_DAY`) сервис деградирует в `fallback_catalog` для новых payload-only запросов.
+
 #### 5.1.5 Ошибки
 - `400 Bad Request`
   - нет `channel` или некорректный тип
@@ -237,7 +239,7 @@ ManyChat и другие системы любят ретраи. Мы должн
 
 ## 9) Endpoint: Upsert content_map
 ### 9.1 POST /v1/admin/content-map/upsert
-**Назначение:** создать или обновить запись по `(channel, content_ref)` или по `slug`.
+**Назначение:** создать или обновить запись по `(channel, content_ref)`.
 
 **Request:**
 ```json

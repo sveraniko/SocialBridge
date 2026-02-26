@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import validate_admin_token
 from app.db.session import get_db_session
 from app.repositories.content_map_repo import ContentMapRepository
-from app.services.admin_service import AdminService
+from app.services.admin_service import AdminService, AdminValidationError
 
 router = APIRouter(prefix="/v1/admin/content-map", tags=["admin"], dependencies=[Depends(validate_admin_token)])
 
@@ -30,24 +30,44 @@ async def upsert_content_map(payload: dict, session: AsyncSession = Depends(get_
         item = await service.upsert(payload)
         await session.commit()
         return {"item": item}
-    except ValueError as exc:
+    except AdminValidationError as exc:
         await session.rollback()
-        return JSONResponse(status_code=400, content={"error": {"code": "bad_request", "message": str(exc)}})
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"code": exc.code, "message": exc.message, "field": exc.field}},
+        )
     except IntegrityError:
         await session.rollback()
         return JSONResponse(
             status_code=409,
-            content={"error": {"code": "conflict", "message": "slug already exists"}},
+            content={"error": {"code": "conflict", "message": "slug already exists", "field": "slug"}},
         )
 
 
+def _extract_import_items(payload: object) -> list[dict]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        return payload["items"]
+    raise AdminValidationError("import body must be array or object with items[]", field="items")
+
+
 @router.post("/import")
-async def import_content_map(items: list[dict], session: AsyncSession = Depends(get_db_session)):
+async def import_content_map(payload: object, session: AsyncSession = Depends(get_db_session)):
     service = AdminService(ContentMapRepository(session))
     created = 0
     updated = 0
     failed = 0
     errors = []
+
+    try:
+        items = _extract_import_items(payload)
+    except AdminValidationError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"code": exc.code, "message": exc.message, "field": exc.field}},
+        )
+
     for idx, item in enumerate(items):
         try:
             async with session.begin():
@@ -56,12 +76,15 @@ async def import_content_map(items: list[dict], session: AsyncSession = Depends(
                 created += 1
             else:
                 updated += 1
-        except ValueError as exc:
+        except AdminValidationError as exc:
             failed += 1
-            errors.append({"index": idx, "code": "bad_request", "message": str(exc)})
+            details = {"index": idx, "code": exc.code, "message": exc.message}
+            if exc.field:
+                details["field"] = exc.field
+            errors.append(details)
         except IntegrityError:
             failed += 1
-            errors.append({"index": idx, "code": "conflict", "message": "slug already exists"})
+            errors.append({"index": idx, "code": "conflict", "message": "slug already exists", "field": "slug"})
     return {"created": created, "updated": updated, "failed": failed, "errors": errors}
 
 

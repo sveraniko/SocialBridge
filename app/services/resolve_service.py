@@ -23,7 +23,13 @@ class ResolveService:
         self.content_repo = content_repo
         self.inbound_repo = inbound_repo
 
-    async def resolve(self, raw_payload: dict, data: ResolveInput, request_id: str | None) -> ResolveOutput:
+    async def resolve(
+        self,
+        raw_payload: dict,
+        data: ResolveInput,
+        request_id: str | None,
+        persist_inbound_event: bool = True,
+    ) -> ResolveOutput:
         started = time.monotonic()
         start_param = None
         slug = "catalog"
@@ -55,21 +61,22 @@ class ResolveService:
             tag=tag,
             result=result,
         )
-        await self.inbound_repo.insert_dedup(
-            {
-                "channel": data.channel,
-                "payload_hash": payload_hash(raw_payload),
-                "content_ref": data.content_ref,
-                "mc_contact_id": data.mc_contact_id,
-                "mc_flow_id": data.mc_flow_id,
-                "mc_trigger": data.mc_trigger,
-                "text_preview": (data.text or "")[:256] if self.settings.STORE_TEXT_PREVIEW else None,
-                "result": output.result.value,
-                "resolved_slug": output.slug,
-                "resolved_start_param": output.start_param,
-                "latency_ms": int((time.monotonic() - started) * 1000),
-                "request_id": request_id,
-                "payload_min": data.payload_min,
-            }
-        )
+        if persist_inbound_event:
+            await self.inbound_repo.insert_dedup(
+                {
+                    "channel": data.channel,
+                    "payload_hash": payload_hash(raw_payload),
+                    "content_ref": data.content_ref,
+                    "mc_contact_id": data.mc_contact_id,
+                    "mc_flow_id": data.mc_flow_id,
+                    "mc_trigger": data.mc_trigger,
+                    "text_preview": (data.text or "")[:256] if self.settings.STORE_TEXT_PREVIEW else None,
+                    "result": output.result.value,
+                    "resolved_slug": output.slug,
+                    "resolved_start_param": output.start_param,
+                    "latency_ms": int((time.monotonic() - started) * 1000),
+                    "request_id": request_id,
+                    "payload_min": data.payload_min,
+                }
+            )
         return output

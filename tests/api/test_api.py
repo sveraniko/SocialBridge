@@ -147,19 +147,96 @@ def test_admin_import_partial_success(client, monkeypatch):
 
     response = client.post(
         "/v1/admin/content-map/import",
-        json=[
-            {"channel": "ig", "content_ref": "ok1", "slug": "ok1", "start_param": "LOOK_A"},
-            {"channel": "ig", "content_ref": "bad", "slug": "taken", "start_param": "LOOK_B"},
-            {"channel": "ig", "content_ref": "ok2", "slug": "ok2", "start_param": "LOOK_C"},
-        ],
+        json={
+            "items": [
+                {"channel": "ig", "content_ref": "campaign:ok1", "start_param": "LOOK_A"},
+                {"channel": "ig", "content_ref": "campaign:bad", "slug": "taken", "start_param": "LOOK_B"},
+                {"channel": "ig", "content_ref": "campaign:ok2", "slug": "", "start_param": "LOOK_C"},
+            ]
+        },
         headers={"X-Admin-Token": "change-me-admin"},
     )
     assert response.status_code == 200
     assert response.json()["created"] == 2
     assert response.json()["failed"] == 1
     assert response.json()["errors"][0]["code"] == "conflict"
-    assert state["written"] == ["ok1", "ok2"]
+    assert response.json()["errors"][0]["field"] == "slug"
+    assert state["written"] == ["campaign:ok1", "campaign:ok2"]
 
+
+def test_admin_upsert_auto_slug(client, monkeypatch):
+    captured = {}
+
+    async def fake_upsert(self, payload):
+        captured.update(payload)
+        return SimpleNamespace(
+            id="1",
+            channel=payload["channel"],
+            content_ref=payload["content_ref"],
+            start_param=payload.get("start_param"),
+            slug=payload["slug"],
+            is_active=True,
+            meta=payload.get("meta", {}),
+            created_at=None,
+            updated_at=None,
+        )
+
+    monkeypatch.setattr(ContentMapRepository, "upsert", fake_upsert)
+
+    response = client.post(
+        "/v1/admin/content-map/upsert",
+        json={"channel": "ig", "content_ref": "campaign:Dress 001", "start_param": "LOOK_A"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert captured["slug"] == "dress_001"
+
+
+def test_resolve_preview_shape_and_no_inbound_write(client, monkeypatch):
+    calls = {"inbound": 0}
+
+    async def fake_insert(self, payload):
+        calls["inbound"] += 1
+
+    monkeypatch.setattr(InboundEventRepository, "insert_dedup", fake_insert)
+
+    response = client.post(
+        "/v1/admin/resolve-preview",
+        json={"channel": "ig", "content_ref": "campaign:dress001", "text": "anything"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["slug"] == "dress001"
+    assert body["url"].endswith("/t/dress001")
+    assert body["start_param"] == "DRESS001"
+    assert calls["inbound"] == 0
+
+
+def test_content_map_total_uses_filters(client, monkeypatch):
+    async def fake_list_items(self, channel, is_active, limit, offset):
+        assert channel == "ig"
+        assert is_active is True
+        return [SimpleNamespace(
+            id="1",
+            channel="ig",
+            content_ref="campaign:dress001",
+            start_param="DRESS001",
+            slug="dress001",
+            is_active=True,
+            meta={},
+            created_at=None,
+            updated_at=None,
+        )], 7
+
+    monkeypatch.setattr(ContentMapRepository, "list_items", fake_list_items)
+
+    response = client.get(
+        "/v1/admin/content-map?channel=ig&is_active=true&limit=1&offset=0",
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 7
 
 
 def test_admin_import_does_not_call_manual_rollback(client, monkeypatch):
@@ -232,15 +309,13 @@ def test_admin_forbidden_error_format(client):
     assert "request_id" in body["error"]
 
 
-def test_validation_error_format(client):
+def test_admin_import_invalid_payload_error_format(client):
     response = client.post(
         "/v1/admin/content-map/import",
         json={"channel": "ig"},
         headers={"X-Admin-Token": "change-me-admin"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
     body = response.json()
-    assert "error" in body
-    assert "detail" not in body
-    assert body["error"]["code"] == "validation_error"
-    assert "request_id" in body["error"]
+    assert body["error"]["code"] == "bad_request"
+    assert body["error"]["field"] == "items"

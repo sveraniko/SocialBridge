@@ -14,8 +14,8 @@ from wizard_bot.security.admin_guard import UNAUTHORIZED_TEXT, extract_user_id, 
 from wizard_bot.storage.locks import ChatLock
 from wizard_bot.storage.redis import get_redis, import_last_file_key, unauthorized_notice_key
 from wizard_bot.ui.clean_chat import ChatCleaner
+from wizard_bot.ui.messenger import Messenger
 from wizard_bot.ui.panel import PanelManager
-from wizard_bot.ui.registry import register_message
 from wizard_bot.wizard.state import load_session, save_session
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ async def _handle_document_message(chat_id: int, message: dict, panel, redis, te
         return True
 
 
-async def process_update(update: dict, *, settings, redis, telegram, panel, cleaner, sb_client) -> None:
+async def process_update(update: dict, *, settings, redis, telegram, panel, cleaner, messenger, sb_client) -> None:
     user_id = extract_user_id(update)
 
     msg = update.get("message")
@@ -102,9 +102,7 @@ async def process_update(update: dict, *, settings, redis, telegram, panel, clea
         if msg and chat_id is not None:
             key = unauthorized_notice_key(chat_id)
             if not await redis.get(key):
-                sent = await telegram.send_message(chat_id=chat_id, text=UNAUTHORIZED_TEXT)
-                if sent.get("message_id"):
-                    await register_message(redis, chat_id, int(sent["message_id"]))
+                await messenger.send_text(chat_id=chat_id, text=UNAUTHORIZED_TEXT, register=True)
                 await redis.set(key, "1", ex=24 * 3600)
         return
 
@@ -134,9 +132,9 @@ async def process_update(update: dict, *, settings, redis, telegram, panel, clea
                 return
             if data == "act:clean":
                 await cleaner.clean(chat_id)
-                await show_main(panel, redis, chat_id)
+                await panel.render(chat_id=chat_id, text="✅ Cleaned", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]})
             else:
-                await handle_callback(data, chat_id, panel, redis, telegram, sb_client, settings)
+                await handle_callback(data, chat_id, panel, redis, telegram, messenger, sb_client, settings)
         await telegram.answer_callback_query(callback_query["id"])
 
 
@@ -148,6 +146,7 @@ async def runner() -> None:
     sb_client = SocialBridgeClient(settings.SOCIALBRIDGE_ADMIN_BASE_URL, settings.SOCIALBRIDGE_ADMIN_TOKEN)
     panel = PanelManager(redis, telegram)
     cleaner = ChatCleaner(redis, telegram)
+    messenger = Messenger(redis, telegram)
 
     offset = None
     logger.info("wizard bot started")
@@ -164,6 +163,7 @@ async def runner() -> None:
                         telegram=telegram,
                         panel=panel,
                         cleaner=cleaner,
+                        messenger=messenger,
                         sb_client=sb_client,
                     )
                 except Exception:

@@ -25,8 +25,12 @@ class FakePanel:
 
 
 class FakeTelegram:
+    pass
+
+
+class FakeMessenger:
     async def send_document(self, **kwargs):
-        return {"message_id": 1}
+        return 1
 
 
 class FakeSBClient:
@@ -54,6 +58,7 @@ async def test_campaign_toggle_calls_disable_and_enable_clients():
     redis = FakeRedis()
     panel = FakePanel()
     telegram = FakeTelegram()
+    messenger = FakeMessenger()
     sb_client = FakeSBClient()
     chat_id = 11
     redis.db[f"wiz:chat:{chat_id}:session"] = json.dumps(
@@ -70,8 +75,8 @@ async def test_campaign_toggle_calls_disable_and_enable_clients():
         }
     )
 
-    await handle_callback("camp:disable", chat_id, panel, redis, telegram, sb_client, FakeSettings())
-    await handle_callback("camp:enable", chat_id, panel, redis, telegram, sb_client, FakeSettings())
+    await handle_callback("camp:disable", chat_id, panel, redis, telegram, messenger, sb_client, FakeSettings())
+    await handle_callback("camp:enable", chat_id, panel, redis, telegram, messenger, sb_client, FakeSettings())
 
     assert sb_client.disable_calls == [("ig", "campaign:dress001")]
     assert len(sb_client.enable_calls) == 1

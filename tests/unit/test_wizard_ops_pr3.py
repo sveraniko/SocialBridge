@@ -35,6 +35,9 @@ class FakeSBClient:
         self.last_upsert = kwargs
         return {"slug": "dress001"}
 
+    async def list_content_map(self, **kwargs):
+        return {"items": []}
+
 
 @pytest.mark.parametrize(
     "payload,expected_len",

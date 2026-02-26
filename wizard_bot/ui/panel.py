@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from wizard_bot.storage.redis import active_panel_key
+from wizard_bot.ui.messenger import Messenger
 from wizard_bot.ui.registry import register_message
 
 
@@ -8,6 +9,7 @@ class PanelManager:
     def __init__(self, redis, telegram_client):
         self.redis = redis
         self.telegram_client = telegram_client
+        self.messenger = Messenger(redis, telegram_client)
 
     async def render(self, chat_id: int, text: str, keyboard: dict) -> int:
         active_key = active_panel_key(chat_id)
@@ -26,9 +28,12 @@ class PanelManager:
             except Exception:
                 pass
 
-        sent = await self.telegram_client.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
-        new_message_id = int(sent["message_id"])
-        await register_message(self.redis, chat_id, new_message_id)
+        new_message_id = await self.messenger.send_text(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=keyboard,
+            register=True,
+        )
         await self.redis.set(active_key, new_message_id)
 
         if current_message_id and str(current_message_id).isdigit() and int(current_message_id) != new_message_id:

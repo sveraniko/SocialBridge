@@ -89,7 +89,8 @@ Link for bio/story/pinned comment: http://localhost:8000/t/dress001
 ## UX guarantees
 - No reply keyboards, only inline keyboards.
 - `Back` must move exactly one step back (wizard step or nav stack route).
-- `Clean Chat` deletes all bot-created registered messages (panels and documents) and resets active panel + session.
+- Every wizard output uses a unified send+register path, so panel messages, extra text notices, and sent documents are all tracked in `wiz:chat:{chat_id}:msgs` for cleanup.
+- `Clean Chat` deletes active panel + all registered messages, clears wizard state keys (`session` and `stack`), and then shows a single `✅ Cleaned` inline panel.
 - SocialBridge HTTP errors are shown in friendly panel text and do not crash wizard flow.
 
 ## Local run

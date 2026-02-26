@@ -20,8 +20,19 @@ class TelegramClient:
         body = response.json()
         return body.get("result", [])
 
-    async def send_message(self, chat_id: int, text: str, reply_markup: dict | None = None) -> dict:
-        payload = {"chat_id": chat_id, "text": text}
+    async def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        parse_mode: str | None = None,
+        disable_web_page_preview: bool | None = None,
+        reply_markup: dict | None = None,
+    ) -> dict:
+        payload: dict[str, object] = {"chat_id": chat_id, "text": text}
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        if disable_web_page_preview is not None:
+            payload["disable_web_page_preview"] = disable_web_page_preview
         if reply_markup:
             payload["reply_markup"] = reply_markup
         response = await self._client.post("/sendMessage", json=payload)

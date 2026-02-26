@@ -16,6 +16,7 @@ from wizard_bot.storage.redis import get_redis, import_last_file_key, unauthoriz
 from wizard_bot.ui.clean_chat import ChatCleaner
 from wizard_bot.ui.messenger import Messenger
 from wizard_bot.ui.panel import PanelManager
+from wizard_bot.ui.registry import register_message
 from wizard_bot.wizard.state import load_session, save_session
 
 logger = logging.getLogger(__name__)
@@ -109,10 +110,15 @@ async def process_update(update: dict, *, settings, redis, telegram, panel, clea
     if msg:
         message = msg
         chat_id = message["chat"]["id"]
+        message_id = message.get("message_id")
         text = message.get("text", "")
         if text.startswith("/start"):
             await show_main(panel, redis, chat_id)
             return
+
+        # Register user's incoming message so Home button can delete it
+        if message_id:
+            await register_message(redis, chat_id, message_id)
 
         if await _handle_document_message(chat_id, message, panel, redis, telegram, sb_client):
             return

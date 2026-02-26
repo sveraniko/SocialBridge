@@ -42,10 +42,12 @@ class ContentMapRepository:
             for key, value in payload.items():
                 setattr(existing, key, value)
             await self.session.flush()
+            await self.session.refresh(existing)
             return existing
         obj = ContentMap(**payload)
         self.session.add(obj)
         await self.session.flush()
+        await self.session.refresh(obj)
         return obj
 
     async def find_by_channel_ref(self, channel: str, content_ref: str) -> ContentMap | None:
@@ -57,6 +59,15 @@ class ContentMapRepository:
         if not obj:
             return False
         obj.is_active = False
+        await self.session.flush()
+        await self.session.refresh(obj)
+        return True
+
+    async def delete(self, channel: str, content_ref: str) -> bool:
+        obj = await self.find_by_channel_ref(channel, content_ref)
+        if not obj:
+            return False
+        await self.session.delete(obj)
         await self.session.flush()
         return True
 

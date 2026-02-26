@@ -97,6 +97,14 @@ class SocialBridgeClient:
         response.raise_for_status()
         return response.json()
 
+    async def delete_content_map(self, channel: str, content_ref: str) -> dict:
+        response = await self._client.post(
+            "/v1/admin/content-map/delete",
+            json={"channel": channel, "content_ref": content_ref},
+        )
+        response.raise_for_status()
+        return response.json()
+
     async def resolve_preview(self, channel: str, content_ref: str, text: str | None = None) -> dict:
         payload: dict[str, object] = {"channel": channel, "content_ref": content_ref}
         if text is not None:

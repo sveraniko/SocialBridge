@@ -101,3 +101,14 @@ async def disable_content_map(payload: dict, session: AsyncSession = Depends(get
     ok = await AdminService(ContentMapRepository(session)).disable(channel, content_ref)
     await session.commit()
     return {"result": "disabled" if ok else "not_found"}
+
+
+@router.post("/delete")
+async def delete_content_map(payload: dict, session: AsyncSession = Depends(get_db_session)):
+    channel = payload.get("channel")
+    content_ref = payload.get("content_ref")
+    if not isinstance(channel, str) or not channel or not isinstance(content_ref, str) or not content_ref:
+        return error_response(400, "channel and content_ref are required", code="bad_request")
+    ok = await AdminService(ContentMapRepository(session)).delete(channel, content_ref)
+    await session.commit()
+    return {"result": "deleted" if ok else "not_found"}

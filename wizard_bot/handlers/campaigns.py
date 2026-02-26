@@ -39,12 +39,15 @@ async def render_campaign_view(panel, redis, chat_id: int, settings) -> bool:
     content_ref = campaign.get("content_ref") or "-"
     shortlink = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{slug}" if slug != "-" else "-"
     is_active = bool(campaign.get("is_active"))
+    meta = campaign.get("meta") if isinstance(campaign.get("meta"), dict) else {}
+    kind = meta.get("kind") or ""
+    param_label = "product code" if kind == "product" else "look code" if kind == "look" else "start_param"
     lines = [
         "Campaign View",
         "",
         f"• channel: {campaign.get('channel') or '-'}",
         f"• content_ref: {content_ref}",
-        f"• start_param: {campaign.get('start_param') or 'Catalog'}",
+        f"• {param_label}: {campaign.get('start_param') or 'Catalog'}",
         f"• slug: {slug}",
         f"• is_active: {is_active}",
         f"• shortlink: {shortlink}",

@@ -79,7 +79,7 @@ async def _handle_document_message(chat_id: int, message: dict, panel, redis, te
         await panel.render(
             chat_id=chat_id,
             text=summarize_import_result(result if isinstance(result, dict) else {}),
-            keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]},
+            keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}]]},
         )
         return True
 

@@ -25,18 +25,19 @@ async def render_step(panel, chat_id: int, data: dict) -> None:
                 [{"text": "Mode 0 · Direct shortlink", "callback_data": "wiz:mode:0"}],
                 [{"text": "Mode 1 · BUY + code", "callback_data": "wiz:mode:1"}],
                 [{"text": "Mode 2 · Comment→DM mapping", "callback_data": "wiz:mode:2"}],
-                [{"text": "Cancel", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}],
+                [{"text": "Cancel", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}],
             ]
         }
     elif step == "kind":
         text = "Create campaign/link\n\nStep 2/5: Choose kind."
         kb = kind_keyboard()
     elif step == "start_param":
-        prompt = "Enter start param"
-        if data.get("kind") == "look":
-            prompt += " (must start with LOOK_)."
-        elif data.get("kind") == "product":
-            prompt += " (example: DRESS001)."
+        if data.get("kind") == "product":
+            prompt = "Enter product code (example: DRESS001)."
+        elif data.get("kind") == "look":
+            prompt = "Enter look code (must start with LOOK_)."
+        else:
+            prompt = "Enter start param."
         text = f"Create campaign/link\n\nStep 3/5: {prompt}\n\nSend one text message."
         kb = step_back_cancel_keyboard(skip=False)
     elif step == "slug_choice":
@@ -54,7 +55,7 @@ async def render_step(panel, chat_id: int, data: dict) -> None:
             f"• mode: {MODE_TEXT.get(str(data.get('mode')), '-')}",
             f"• kind: {data.get('kind', '-')}",
             f"• content_ref: campaign:{key}",
-            f"• start_param: {data.get('start_param') or 'NULL'}",
+            f"• {'product code' if data.get('kind') == 'product' else 'look code' if data.get('kind') == 'look' else 'start_param'}: {data.get('start_param') or 'NULL'}",
             f"• slug: {data.get('slug') or 'auto'}",
         ]
         if str(data.get("mode")) == "1" and data.get("start_param"):
@@ -64,7 +65,7 @@ async def render_step(panel, chat_id: int, data: dict) -> None:
             "inline_keyboard": [
                 [{"text": "Create", "callback_data": "wiz:create"}],
                 [{"text": "Back", "callback_data": "act:back"}, {"text": "Cancel", "callback_data": "nav:MAIN"}],
-                [{"text": "Clean Chat", "callback_data": "act:clean"}],
+                [{"text": "Home", "callback_data": "act:clean"}],
             ]
         }
     elif step == "result":

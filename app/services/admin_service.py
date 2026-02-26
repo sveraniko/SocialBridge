@@ -38,6 +38,9 @@ class AdminService:
     async def disable(self, channel: str, content_ref: str) -> bool:
         return await self.content_repo.disable(channel, content_ref)
 
+    async def delete(self, channel: str, content_ref: str) -> bool:
+        return await self.content_repo.delete(channel, content_ref)
+
     @staticmethod
     def serialize(obj):
         return {

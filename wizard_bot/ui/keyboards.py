@@ -13,7 +13,7 @@ def main_menu_keyboard() -> dict:
             [_button("Backup / Export", "ops:export")],
             [_button("Restore / Import", "ops:import")],
             [_button("Status", "ops:status")],
-            [_button("Clean Chat", "act:clean")],
+            [_button("Home", "act:clean")],
         ]
     }
 
@@ -35,7 +35,7 @@ def campaigns_keyboard(items: list[dict], offset: int, limit: int, total: int) -
         rows.append(nav_row)
 
     rows.append([_button("Refresh", f"camp:page:{offset}")])
-    rows.append([_button("Back", "act:back"), _button("Clean Chat", "act:clean")])
+    rows.append([_button("Back", "act:back"), _button("Home", "act:clean")])
     return {"inline_keyboard": rows}
 
 
@@ -44,10 +44,10 @@ def campaign_view_keyboard(is_active: bool) -> dict:
     toggle_action = "camp:disable" if is_active else "camp:enable"
     return {
         "inline_keyboard": [
-            [_button(toggle_text, toggle_action)],
+            [_button(toggle_text, toggle_action), _button("Delete", "camp:delete")],
             [_button("Resolve Preview", "camp:preview")],
             [_button("Back to list", "act:back")],
-            [_button("Main Menu", "nav:MAIN"), _button("Clean Chat", "act:clean")],
+            [_button("Main Menu", "nav:MAIN"), _button("Home", "act:clean")],
         ]
     }
 
@@ -88,6 +88,6 @@ def result_keyboard(is_active: bool) -> dict:
             toggle_row,
             secondary_row,
             [_button("Resolve Preview", "wiz:preview")],
-            [_button("Main Menu", "nav:MAIN"), _button("Clean Chat", "act:clean")],
+            [_button("Main Menu", "nav:MAIN"), _button("Home", "act:clean")],
         ]
     }

@@ -37,7 +37,7 @@ async def _render_status(panel, chat_id: int, sb_client, settings) -> None:
         dynamic_24h_count=dynamic_count,
         dynamic_limit=str(dynamic_limit),
     )
-    await panel.render(chat_id=chat_id, text=text, keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]})
+    await panel.render(chat_id=chat_id, text=text, keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}]]})
 
 
 async def _send_backup(chat_id: int, panel, messenger, sb_client) -> None:
@@ -54,7 +54,7 @@ async def _send_backup(chat_id: int, panel, messenger, sb_client) -> None:
         caption="SocialBridge content_map backup",
         register=True,
     )
-    await panel.render(chat_id=chat_id, text=f"Backup sent as {filename}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]})
+    await panel.render(chat_id=chat_id, text=f"Backup sent as {filename}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}]]})
 
 
 async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messenger, sb_client, settings) -> None:
@@ -101,7 +101,7 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         await render_campaign_view(panel, redis, chat_id, settings)
         return
 
-    if data in {"camp:disable", "camp:enable", "camp:preview"}:
+    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete"}:
         session = await load_session(redis, chat_id)
         campaign = session.get("campaign_view") if isinstance(session.get("campaign_view"), dict) else None
         if not campaign:
@@ -128,6 +128,25 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
             if error is None and isinstance(item, dict):
                 campaign.update(item)
                 campaign["is_active"] = True
+        elif data == "camp:delete":
+            _, error = await run_sb_call(lambda: sb_client.delete_content_map(channel=channel, content_ref=content_ref), "Failed to delete")
+            if error is None:
+                session["campaign_view"] = None
+                session["error"] = "Campaign deleted"
+                await save_session(redis, chat_id, session)
+                await render_campaigns(
+                    panel,
+                    sb_client,
+                    redis,
+                    chat_id,
+                    int(session.get("campaigns_limit") or settings.WIZARD_CAMPAIGNS_PAGE_LIMIT),
+                    offset=int(session.get("campaigns_offset") or 0),
+                )
+                return
+            session["error"] = error
+            await save_session(redis, chat_id, session)
+            await render_campaign_view(panel, redis, chat_id, settings)
+            return
         else:
             result, error = await run_sb_call(
                 lambda: sb_client.resolve_preview(channel=channel, content_ref=content_ref, text="preview"),
@@ -155,7 +174,7 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         await panel.render(
             chat_id=chat_id,
             text="Restore / Import\n\nSend JSON document (array or {\"items\": [...]}) to import content_map.",
-            keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]},
+            keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}]]},
         )
         return
 

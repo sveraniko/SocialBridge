@@ -9,7 +9,6 @@ from wizard_bot.handlers.ops_tools import build_status_text, count_recent_dynami
 from wizard_bot.handlers.start import show_main
 from wizard_bot.nav import routes
 from wizard_bot.nav.stack import pop_route, push_route
-from wizard_bot.storage.redis import chat_messages_key
 from wizard_bot.wizard.state import load_session, save_session
 
 
@@ -41,21 +40,24 @@ async def _render_status(panel, chat_id: int, sb_client, settings) -> None:
     await panel.render(chat_id=chat_id, text=text, keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]})
 
 
-async def _send_backup(chat_id: int, panel, redis, telegram, sb_client) -> None:
+async def _send_backup(chat_id: int, panel, messenger, sb_client) -> None:
     items, error = await run_sb_call(lambda: sb_client.export_content_map(), "Failed to export content map")
     if error:
         await panel.render(chat_id=chat_id, text=f"Backup / Export\n\n⚠️ {error}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]})
         return
     payload = items if isinstance(items, list) else []
     filename = f"content_map_backup_{datetime.now(UTC).strftime('%Y%m%d_%H%M')}.json"
-    sent = await telegram.send_document(chat_id=chat_id, filename=filename, content=(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")), caption="SocialBridge content_map backup")
-    message_id = int(sent.get("message_id", 0))
-    if message_id:
-        await redis.sadd(chat_messages_key(chat_id), str(message_id))
+    await messenger.send_document(
+        chat_id=chat_id,
+        filename=filename,
+        bytes_or_file=(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")),
+        caption="SocialBridge content_map backup",
+        register=True,
+    )
     await panel.render(chat_id=chat_id, text=f"Backup sent as {filename}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]})
 
 
-async def handle_callback(data: str, chat_id: int, panel, redis, telegram, sb_client, settings) -> None:
+async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messenger, sb_client, settings) -> None:
     if data == "nav:CREATE_LINK":
         await push_route(redis, chat_id, routes.CREATE_LINK, routes.MAIN)
         await start_create(panel, redis, chat_id)
@@ -143,7 +145,7 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, sb_cl
         return
 
     if data == "ops:export":
-        await _send_backup(chat_id, panel, redis, telegram, sb_client)
+        await _send_backup(chat_id, panel, messenger, sb_client)
         return
 
     if data == "ops:import":

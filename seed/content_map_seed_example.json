@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "channel": "ig",
+      "content_ref": "campaign:catalog",
+      "start_param": null,
+      "slug": "catalog"
+    },
+    {
+      "channel": "generic",
+      "content_ref": "campaign:catalog",
+      "start_param": null,
+      "slug": "catalog"
+    },
+    {
+      "channel": "ig",
+      "content_ref": "campaign:dress001",
+      "start_param": "DRESS001",
+      "slug": "dress001"
+    },
+    {
+      "channel": "ig",
+      "content_ref": "campaign:look_spring26",
+      "start_param": "LOOK_SPRING26",
+      "slug": "spring26"
+    },
+    {
+      "channel": "ig",
+      "content_ref": "campaign:look_night26",
+      "start_param": "LOOK_NIGHT26",
+      "slug": "night26"
+    }
+  ]
+}

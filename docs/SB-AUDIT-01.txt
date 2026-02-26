@@ -1,0 +1,229 @@
+Skill usage
+No listed skill matched this audit task directly (it is not a skill-creation or skill-install task), so I proceeded with a direct repository audit.
+
+SB-AUDIT-01 — Repository Audit Report
+1) Implemented features (what is реально в репо)
+API endpoints are present for all requested surfaces:
+
+GET /health and GET /ready (with DB probe and 503 on failure).
+
+POST /v1/mc/resolve with normalized payload, channel validation, and response fields reply_text/url/start_param/slug/tag/result.
+
+GET /t/{slug} with click logging + 302 redirect target from service logic.
+
+Admin content-map endpoints: list/upsert/import/export/disable under /v1/admin/content-map/*.
+
+POST /v1/admin/resolve-preview exists and intentionally does not persist inbound event log (persist_inbound_event=False).
+
+Auth controls exist:
+
+Admin token enforced on /v1/admin/* (403 via HTTPException if invalid).
+
+ManyChat token check is conditional (MC_TOKEN_REQUIRED).
+
+Resolve behavior implemented per core flow:
+
+Lookup by (channel, content_ref) → hit.
+
+On miss, parse payload from text → dynamic mapping in generic channel → fallback_payload.
+
+Else → catalog slug/result fallback_catalog.
+
+Inbound dedup/log record is written with payload_hash and resolution metadata.
+
+Redirect behavior implemented with miss-safe fallback:
+
+If slug not found, still logs click (meta.miss=true) and redirects to bot catalog deeplink (no start).
+
+Data model + migration baseline are present and aligned in code:
+
+sb_content_map, sb_inbound_event, sb_click_event with checks/uniques/indexes in Alembic baseline and SQLAlchemy models.
+
+Operator scripts exist for required workflows:
+
+Import/upsert/resolve-preview admin helpers and registry CSV→JSON converter are implemented as CLI scripts.
+
+Seed/registry assets are present:
+
+Example campaign registry CSV and pre-generated content map JSON exist and are consistent in content shape for import flow.
+
+2) Missing / partial features (severity-tagged)
+Blocker
+Environment bootstrap reproducibility risk: repo relies on docker compose for local runbook, but current environment had no docker binary, and pip install is blocked by network/proxy, preventing full operator simulation in this audit environment.
+
+This is an audit environment blocker, not necessarily a repo code blocker, but it blocks “no-touch runtime validation” right now.
+
+Important
+API contract mismatch: list default/max pagination differs from docs
+
+Docs: default limit=200, max 1000; code: default 50, max 500.
+
+API contract mismatch: upsert response lacks result=created|updated
+
+Docs specify {"item": ..., "result": "created|updated"}; code returns only {"item": ...}.
+
+API contract mismatch: export filtering not implemented
+
+Docs mention optional query filters on export; endpoint currently ignores filters and returns all records.
+
+Runbook drift: service naming/components
+
+Runbook references db, optional redis/proxy, but compose defines postgres + api only. Operationally fine, but docs and compose naming diverge.
+
+Nice-to-have
+No explicit admin audit trail table (sb_admin_audit) yet (documented as optional; useful before broader operator access).
+
+Error response consistency is mostly centralized, but some endpoint-local JSONResponse paths omit request_id on manual 400 branches (e.g., missing channel in resolve).
+
+3) Stubs / placeholders / landmines scan
+No TODO/FIXME/NotImplementedError stubs in application logic found by scan.
+
+Only literal pass is SQLAlchemy declarative base class (normal, not a stub risk).
+
+Potential landmine identified: dynamic fallback mapping writes DB rows (dyn:*) during resolve fallback. This is intentional behavior but can grow mapping table over time if traffic has many unique payloads; needs ops watch/retention strategy.
+
+4) Operator usability simulation (commands + outputs)
+I executed what was possible in this environment and documented expected outputs for the full flow.
+
+Executed successfully
+Generate JSON from registry CSV:
+
+python scripts/registry_to_content_map.py --in seed/campaign_registry_example.csv --out /tmp/generated_audit.json
+
+Observed output: written 7 items to /tmp/generated_audit.json
+
+Confirms converter workflow works locally without service runtime.
+
+Validate converter output matches committed generated asset:
+
+diff -u seed/generated_content_map.json /tmp/generated_audit.json
+
+Observed output: empty diff (exact match).
+
+Could not execute in this environment (with expected outputs)
+Import JSON via admin API:
+
+Command:
+
+python scripts/admin_import_map.py --base-url http://localhost:8000 --token "$ADMIN_TOKEN" --file seed/generated_content_map.json
+
+Expected success output shape:
+
+created=<n>
+
+updated=<n>
+
+failed=<n>
+
+optional errors: lines.
+
+Resolve preview via admin API:
+
+Command:
+
+python scripts/admin_resolve_preview.py --base-url http://localhost:8000 --token "$ADMIN_TOKEN" --channel ig --content-ref campaign:dress001
+
+Expected JSON includes:
+
+reply_text, url, start_param, slug, tag, result.
+
+ManyChat resolve hit/fallback:
+
+Hit:
+
+curl -sS -X POST http://localhost:8000/v1/mc/resolve -H 'Content-Type: application/json' -d '{"channel":"ig","content_ref":"campaign:dress001"}'
+
+Expected result: "hit" and /t/<slug> URL.
+
+Fallback payload:
+
+curl -sS -X POST http://localhost:8000/v1/mc/resolve -H 'Content-Type: application/json' -d '{"channel":"ig","text":"LOOK_SPRING2026"}'
+
+Expected result: "fallback_payload" and dynamic slug.
+
+Fallback catalog:
+
+curl -sS -X POST http://localhost:8000/v1/mc/resolve -H 'Content-Type: application/json' -d '{"channel":"ig"}'
+
+Expected result: "fallback_catalog" and catalog slug/url.
+
+Redirect correctness:
+
+curl -i http://localhost:8000/t/dress001
+
+Expected 302 with Location: https://t.me/<bot>?start=<payload>.
+
+On unknown slug:
+
+curl -i http://localhost:8000/t/unknown
+
+Expected 302 with Location: https://t.me/<bot> (catalog).
+
+5) Testing status (requested critical cases)
+Coverage present for all requested critical behaviors:
+
+Resolve hit/fallback + redirect basic path in API tests.
+
+Import partial success behavior covered.
+
+Registry converter tests exist (success + invalid row rejection).
+
+Ready endpoint test exists (/ready returns DB check).
+
+Service-level fallback_payload + redirect miss behavior covered in unit tests.
+
+6) Ready for ManyChat IG pilot?
+Verdict
+Conditionally YES (operationally close), with 3 important doc/contract alignments before go-live comms.
+
+Punchy checklist (max 10)
+ Confirm runtime boot in target environment (docker compose up, migrations).
+
+ Verify MC_TOKEN_REQUIRED=true and correct MC_TOKEN in prod env.
+
+ Verify ADMIN_TOKEN rotation and restricted access for admin scripts.
+
+ Import validated generated_content_map.json and check failed=0.
+
+ Run resolve-preview for 2–3 campaign keys before enabling flow.
+
+ Smoke hit/fallback/redirect paths via curl (including unknown slug redirect).
+
+ Align docs vs code for list pagination defaults/max (50/500 vs 200/1000).
+
+ Decide contract for upsert result field (add in code or remove from docs).
+
+ Decide contract for export filters (implement or revise docs).
+
+ Schedule retention job for inbound/click tables before traffic ramps.
+
+7) If blockers: minimal follow-up PR proposal
+No hard code blocker discovered in logic.
+If you want strict contract/doc consistency before pilot handoff, minimal PR:
+
+PR name: SB-AUDIT-01-doc-contract-alignment
+
+Scope (small):
+
+Align docs/30_api_contracts.md with actual list limits + upsert response + export behavior or tiny API tweaks to match docs.
+
+Align docs/60_deploy_runbook.md service naming with docker-compose.yml.
+
+Add one API test asserting chosen behavior for upsert result and export filtering contract.
+
+Checks run
+✅ rg --files
+
+✅ rg -n "TODO|FIXME|NotImplementedError|\\bpass\\b|stub|placeholder|fake"
+
+✅ python scripts/registry_to_content_map.py --in seed/campaign_registry_example.csv --out /tmp/generated_audit.json
+
+✅ diff -u seed/generated_content_map.json /tmp/generated_audit.json
+
+⚠️ docker compose up -d --build (environment limitation: docker binary not available)
+
+⚠️ python -m pip install -r requirements.txt (environment limitation: package index/proxy unavailable)
+
+⚠️ pytest -q (environment limitation: required deps unavailable due failed install)
+
+No repository changes were made, so no commit and no PR were created.

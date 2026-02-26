@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class ResolveResult(StrEnum):
+class ResolveResult(str, Enum):
     HIT = "hit"
     FALLBACK_PAYLOAD = "fallback_payload"
     FALLBACK_CATALOG = "fallback_catalog"

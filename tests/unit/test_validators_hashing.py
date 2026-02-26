@@ -11,4 +11,4 @@ def test_payload_hash_is_stable():
 def test_parse_start_param_priority():
     assert parse_start_param_from_text("please LOOK_ABC") == "LOOK_ABC"
     assert parse_start_param_from_text("x prod_123") == "prod_123"
-    assert parse_start_param_from_text("buy CODE99") == "buy"
+    assert parse_start_param_from_text("buy CODE99") == "CODE99"

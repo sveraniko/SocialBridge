@@ -274,6 +274,8 @@ Auth: `X-Admin-Token: ...`
 
 ---
 
+**Python 3.12 required.**
+
 ## Quick start
 ```bash
 cp .env.example .env

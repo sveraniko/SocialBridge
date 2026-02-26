@@ -1,5 +1,8 @@
 # 60_deploy_runbook — Deploy + Ops (чтобы поднималось с первого раза)
 
+## Runtime requirement
+- Python 3.12 required.
+
 ## 0) Цель
 Сделать так, чтобы SocialBridge:
 - поднимался “из коробки” (baseline → alembic upgrade head → готово),

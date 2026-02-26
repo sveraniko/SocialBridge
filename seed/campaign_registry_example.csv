@@ -1,0 +1,8 @@
+campaign_key,start_param,slug,kind,notes,post_url,flow_name
+campaign:dress001,DRESS001,dress001,product,Hero red dress drop,https://instagram.com/p/AAA111,SB_IG_CAMP_DRESS001
+campaign:look_spring26,LOOK_SPRING26,look_spring26,look,Spring lookbook capsule,https://instagram.com/p/BBB222,SB_IG_LOOK_SPRING26
+campaign:catalog,,catalog,catalog,Generic fallback catalog,,SB_IG_FALLBACK
+campaign:size_help,SIZE_HELP,size-help,product,Size helper keyword flow,,SB_IG_KEY_SIZE
+campaign:buy_now,BUY_NOW,buy-now,product,Direct buy keyword flow,,SB_IG_KEY_BUY
+campaign:vip_drop,VIPDROP26,vipdrop26,product,VIP launch invite,https://instagram.com/p/CCC333,SB_IG_CAMP_VIPDROP26
+campaign:look_black,LOOK_BLACK,look_black,look,Black collection look,https://instagram.com/p/DDD444,SB_IG_LOOK_BLACK

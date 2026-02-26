@@ -1,0 +1,86 @@
+[
+  {
+    "channel": "ig",
+    "content_ref": "campaign:dress001",
+    "slug": "dress001",
+    "start_param": "DRESS001",
+    "meta": {
+      "kind": "product",
+      "notes": "Hero red dress drop",
+      "post_url": "https://instagram.com/p/AAA111",
+      "flow_name": "SB_IG_CAMP_DRESS001"
+    }
+  },
+  {
+    "channel": "ig",
+    "content_ref": "campaign:look_spring26",
+    "slug": "look_spring26",
+    "start_param": "LOOK_SPRING26",
+    "meta": {
+      "kind": "look",
+      "notes": "Spring lookbook capsule",
+      "post_url": "https://instagram.com/p/BBB222",
+      "flow_name": "SB_IG_LOOK_SPRING26"
+    }
+  },
+  {
+    "channel": "ig",
+    "content_ref": "campaign:catalog",
+    "slug": "catalog",
+    "start_param": null,
+    "meta": {
+      "kind": "catalog",
+      "notes": "Generic fallback catalog",
+      "post_url": null,
+      "flow_name": "SB_IG_FALLBACK"
+    }
+  },
+  {
+    "channel": "ig",
+    "content_ref": "campaign:size_help",
+    "slug": "size-help",
+    "start_param": "SIZE_HELP",
+    "meta": {
+      "kind": "product",
+      "notes": "Size helper keyword flow",
+      "post_url": null,
+      "flow_name": "SB_IG_KEY_SIZE"
+    }
+  },
+  {
+    "channel": "ig",
+    "content_ref": "campaign:buy_now",
+    "slug": "buy-now",
+    "start_param": "BUY_NOW",
+    "meta": {
+      "kind": "product",
+      "notes": "Direct buy keyword flow",
+      "post_url": null,
+      "flow_name": "SB_IG_KEY_BUY"
+    }
+  },
+  {
+    "channel": "ig",
+    "content_ref": "campaign:vip_drop",
+    "slug": "vipdrop26",
+    "start_param": "VIPDROP26",
+    "meta": {
+      "kind": "product",
+      "notes": "VIP launch invite",
+      "post_url": "https://instagram.com/p/CCC333",
+      "flow_name": "SB_IG_CAMP_VIPDROP26"
+    }
+  },
+  {
+    "channel": "ig",
+    "content_ref": "campaign:look_black",
+    "slug": "look_black",
+    "start_param": "LOOK_BLACK",
+    "meta": {
+      "kind": "look",
+      "notes": "Black collection look",
+      "post_url": "https://instagram.com/p/DDD444",
+      "flow_name": "SB_IG_LOOK_BLACK"
+    }
+  }
+]

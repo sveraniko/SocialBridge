@@ -21,3 +21,7 @@ def active_panel_key(chat_id: int) -> str:
 
 def unauthorized_notice_key(chat_id: int) -> str:
     return f"wiz:chat:{chat_id}:unauth:notified"
+
+
+def import_last_file_key(chat_id: int) -> str:
+    return f"wiz:chat:{chat_id}:import:last_file"

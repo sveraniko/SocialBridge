@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -34,7 +35,7 @@ class ContentMap(Base):
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     meta: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
-    created_at: Mapped = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )

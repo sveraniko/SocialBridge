@@ -1,0 +1,28 @@
+[
+  {
+    "id": "321366a9-ede0-47f6-8b7d-5517a02e289c",
+    "channel": "ig",
+    "content_ref": "campaign:boizmrjs",
+    "start_param": "BOIZMRJS",
+    "slug": "coralclub",
+    "is_active": true,
+    "meta": {
+      "kind": "product",
+      "mode": "0",
+      "wizard": true
+    },
+    "created_at": "2026-02-26T18:00:56.916935+00:00",
+    "updated_at": "2026-02-26T19:06:27.434956+00:00"
+  },
+  {
+    "id": "dd7f913a-4b85-4881-9fe0-85f32302cb5a",
+    "channel": "ig",
+    "content_ref": "campaign:catalog",
+    "start_param": null,
+    "slug": "catalog",
+    "is_active": true,
+    "meta": {},
+    "created_at": "2026-02-26T17:29:13.519031+00:00",
+    "updated_at": "2026-02-26T17:29:13.519031+00:00"
+  }
+]

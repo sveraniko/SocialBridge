@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from wizard_bot.handlers.campaigns import render_campaign_view, render_campaigns, select_campaign
+from wizard_bot.handlers.campaigns import render_campaign_view, render_campaigns, search_campaign, select_campaign
 from wizard_bot.handlers.create_link import go_back, handle_wizard_callback, start_create
 from wizard_bot.handlers.ops_tools import build_status_text, count_recent_dynamic, run_sb_call
 from wizard_bot.handlers.start import show_main
 from wizard_bot.nav import routes
 from wizard_bot.nav.stack import pop_route, push_route
+from wizard_bot.ui.keyboards import search_prompt_keyboard
 from wizard_bot.wizard.state import load_session, save_session
 
 
@@ -76,6 +77,45 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         await render_campaigns(panel, sb_client, redis, chat_id, settings.WIZARD_CAMPAIGNS_PAGE_LIMIT, offset=max(0, offset))
         return
 
+    if data == "camp:search":
+        session = await load_session(redis, chat_id)
+        session["awaiting_input"] = "campaign_search"
+        await save_session(redis, chat_id, session)
+        await panel.render(
+            chat_id=chat_id,
+            text="🔍 Search\n\nEnter slug or product code:",
+            keyboard=search_prompt_keyboard(),
+        )
+        return
+
+    if data == "camp:search:cancel":
+        session = await load_session(redis, chat_id)
+        session.pop("awaiting_input", None)
+        await save_session(redis, chat_id, session)
+        await render_campaigns(
+            panel,
+            sb_client,
+            redis,
+            chat_id,
+            int(session.get("campaigns_limit") or settings.WIZARD_CAMPAIGNS_PAGE_LIMIT),
+            offset=int(session.get("campaigns_offset") or 0),
+        )
+        return
+
+    if data == "camp:back_to_list":
+        session = await load_session(redis, chat_id)
+        session.pop("campaign_view", None)
+        session.pop("delete_confirm", None)
+        await save_session(redis, chat_id, session)
+        await render_campaigns(
+            panel,
+            sb_client,
+            redis,
+            chat_id,
+            int(session.get("campaigns_limit") or settings.WIZARD_CAMPAIGNS_PAGE_LIMIT),
+            offset=int(session.get("campaigns_offset") or 0),
+        )
+        return
     if data.startswith("camp:view:"):
         key = data.split(":", 2)[-1]
         session = await load_session(redis, chat_id)
@@ -101,7 +141,7 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         await render_campaign_view(panel, redis, chat_id, settings)
         return
 
-    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete"}:
+    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete", "camp:delete:confirm"}:
         session = await load_session(redis, chat_id)
         campaign = session.get("campaign_view") if isinstance(session.get("campaign_view"), dict) else None
         if not campaign:
@@ -109,11 +149,18 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
             return
         channel = str(campaign.get("channel") or settings.WIZARD_DEFAULT_CHANNEL)
         content_ref = str(campaign.get("content_ref") or "")
+        error_msg = None
+
         if data == "camp:disable":
+            session.pop("delete_confirm", None)  # reset delete confirm on any other action
             _, error = await run_sb_call(lambda: sb_client.disable_content_map(channel=channel, content_ref=content_ref), "Failed to disable")
             if error is None:
                 campaign["is_active"] = False
+                error_msg = "Campaign disabled"
+            else:
+                error_msg = error
         elif data == "camp:enable":
+            session.pop("delete_confirm", None)
             item, error = await run_sb_call(
                 lambda: sb_client.upsert_content_map(
                     channel=channel,
@@ -128,11 +175,22 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
             if error is None and isinstance(item, dict):
                 campaign.update(item)
                 campaign["is_active"] = True
+                error_msg = "Campaign enabled"
+            else:
+                error_msg = error
         elif data == "camp:delete":
+            # First click - show confirm button
+            session["delete_confirm"] = True
+            session["campaign_view"] = campaign
+            await save_session(redis, chat_id, session)
+            await render_campaign_view(panel, redis, chat_id, settings, error_msg="Click 'Confirm Delete' to permanently remove")
+            return
+        elif data == "camp:delete:confirm":
+            # Second click - actually delete
             _, error = await run_sb_call(lambda: sb_client.delete_content_map(channel=channel, content_ref=content_ref), "Failed to delete")
             if error is None:
                 session["campaign_view"] = None
-                session["error"] = "Campaign deleted"
+                session.pop("delete_confirm", None)
                 await save_session(redis, chat_id, session)
                 await render_campaigns(
                     panel,
@@ -141,26 +199,25 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
                     chat_id,
                     int(session.get("campaigns_limit") or settings.WIZARD_CAMPAIGNS_PAGE_LIMIT),
                     offset=int(session.get("campaigns_offset") or 0),
+                    error_msg="Campaign deleted",
                 )
                 return
-            session["error"] = error
-            await save_session(redis, chat_id, session)
-            await render_campaign_view(panel, redis, chat_id, settings)
-            return
-        else:
+            error_msg = error
+            session.pop("delete_confirm", None)
+        else:  # camp:preview
+            session.pop("delete_confirm", None)
             result, error = await run_sb_call(
                 lambda: sb_client.resolve_preview(channel=channel, content_ref=content_ref, text="preview"),
                 "Resolve preview failed",
             )
             if error is None and isinstance(result, dict):
-                session["error"] = f"Preview: {result.get('result')} | start_param={result.get('start_param') or 'NULL'}"
-        if data != "camp:preview":
-            session["error"] = error or ("Campaign disabled" if data == "camp:disable" else "Campaign enabled")
-        elif error:
-            session["error"] = error
+                error_msg = f"Preview: {result.get('result')} | start_param={result.get('start_param') or 'NULL'}"
+            else:
+                error_msg = error
+
         session["campaign_view"] = campaign
         await save_session(redis, chat_id, session)
-        await render_campaign_view(panel, redis, chat_id, settings)
+        await render_campaign_view(panel, redis, chat_id, settings, error_msg=error_msg)
         return
 
     if data == "ops:export":

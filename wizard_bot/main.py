@@ -4,12 +4,15 @@ import asyncio
 import logging
 
 from wizard_bot.config import get_settings
+from wizard_bot.handlers.campaigns import render_campaign_view, render_campaigns, search_campaign
 from wizard_bot.handlers.create_link import handle_wizard_input
 from wizard_bot.handlers.menu import handle_callback
 from wizard_bot.handlers.ops_tools import parse_import_payload, run_sb_call, summarize_import_result
 from wizard_bot.handlers.start import show_main
 from wizard_bot.http.socialbridge_client import SocialBridgeClient
 from wizard_bot.http.telegram_client import TelegramClient
+from wizard_bot.nav import routes
+from wizard_bot.nav.stack import push_route
 from wizard_bot.security.admin_guard import UNAUTHORIZED_TEXT, extract_user_id, is_admin
 from wizard_bot.storage.locks import ChatLock
 from wizard_bot.storage.redis import get_redis, import_last_file_key, unauthorized_notice_key
@@ -121,6 +124,29 @@ async def process_update(update: dict, *, settings, redis, telegram, panel, clea
             await register_message(redis, chat_id, message_id)
 
         if await _handle_document_message(chat_id, message, panel, redis, telegram, sb_client):
+            return
+
+        # Handle campaign search input
+        session = await load_session(redis, chat_id)
+        if session.get("awaiting_input") == "campaign_search":
+            session["awaiting_input"] = None
+            campaign = await search_campaign(sb_client, text)
+            if campaign:
+                session["campaign_view"] = campaign
+                await save_session(redis, chat_id, session)
+                await push_route(redis, chat_id, routes.CAMPAIGN_VIEW, routes.CAMPAIGNS_LIST)
+                await render_campaign_view(panel, redis, chat_id, settings)
+            else:
+                await save_session(redis, chat_id, session)
+                await render_campaigns(
+                    panel,
+                    sb_client,
+                    redis,
+                    chat_id,
+                    int(session.get("campaigns_limit") or settings.WIZARD_CAMPAIGNS_PAGE_LIMIT),
+                    offset=int(session.get("campaigns_offset") or 0),
+                    error_msg=f"Not found: '{text}'",
+                )
             return
 
         consumed = await handle_wizard_input(chat_id, text, panel, redis, telegram)

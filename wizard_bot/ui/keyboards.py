@@ -22,31 +22,41 @@ def campaigns_keyboard(items: list[dict], offset: int, limit: int, total: int) -
     rows: list[list[dict]] = []
     for item in items:
         slug = str(item.get("slug") or "")
-        ref = str(item.get("content_ref") or "-")
-        label = slug or ref
-        rows.append([_button(f"• {label[:45]}", f"camp:view:{slug or ref}")])
+        is_active = item.get("is_active", False)
+        status = "✅" if is_active else "❌"
+        label = f"{status} {slug[:40]}" if slug else "-"
+        rows.append([_button(label, f"camp:view:{slug or item.get('content_ref', '-')}")])
 
     nav_row: list[dict] = []
     if offset > 0:
-        nav_row.append(_button("Prev", f"camp:page:{max(0, offset - limit)}"))
+        nav_row.append(_button("◀ Prev", f"camp:page:{max(0, offset - limit)}"))
     if offset + len(items) < total:
-        nav_row.append(_button("Next", f"camp:page:{offset + limit}"))
+        nav_row.append(_button("Next ▶", f"camp:page:{offset + limit}"))
     if nav_row:
         rows.append(nav_row)
 
-    rows.append([_button("Refresh", f"camp:page:{offset}")])
+    rows.append([_button("🔍 Search", "camp:search")])
     rows.append([_button("Back", "act:back"), _button("Home", "act:clean")])
     return {"inline_keyboard": rows}
 
 
-def campaign_view_keyboard(is_active: bool) -> dict:
-    toggle_text = "Disable" if is_active else "Enable"
-    toggle_action = "camp:disable" if is_active else "camp:enable"
+def search_prompt_keyboard() -> dict:
     return {
         "inline_keyboard": [
-            [_button(toggle_text, toggle_action), _button("Delete", "camp:delete")],
+            [_button("Cancel", "camp:search:cancel")],
+        ]
+    }
+
+
+def campaign_view_keyboard(is_active: bool, delete_confirm: bool = False) -> dict:
+    toggle_text = "Disable" if is_active else "Enable"
+    toggle_action = "camp:disable" if is_active else "camp:enable"
+    delete_btn = _button("❌ Confirm Delete", "camp:delete:confirm") if delete_confirm else _button("Delete", "camp:delete")
+    return {
+        "inline_keyboard": [
+            [_button(toggle_text, toggle_action), delete_btn],
             [_button("Resolve Preview", "camp:preview")],
-            [_button("Back to list", "act:back")],
+            [_button("➕ New", "nav:CREATE_LINK"), _button("Back to list", "camp:back_to_list")],
             [_button("Main Menu", "nav:MAIN"), _button("Home", "act:clean")],
         ]
     }

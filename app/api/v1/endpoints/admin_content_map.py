@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,7 +50,7 @@ def _extract_import_items(payload: object) -> list[dict]:
 
 
 @router.post("/import")
-async def import_content_map(payload: object, session: AsyncSession = Depends(get_db_session)):
+async def import_content_map(payload: Any = Body(...), session: AsyncSession = Depends(get_db_session)):
     service = AdminService(ContentMapRepository(session))
     created = 0
     updated = 0

@@ -1,3 +1,6 @@
+from hashlib import sha256
+
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,3 +63,31 @@ class ContentMapRepository:
 
     async def export(self) -> list[ContentMap]:
         return (await self.session.execute(select(ContentMap).order_by(ContentMap.channel))).scalars().all()
+
+    async def get_or_create_dynamic_mapping(self, start_param: str) -> ContentMap:
+        content_ref = f"dyn:{start_param}"
+        existing = await self.find_by_channel_ref("generic", content_ref)
+        if existing:
+            return existing
+
+        preferred_slug = f"dyn_{start_param.lower()}"
+        slug = preferred_slug if len(preferred_slug) <= 64 else self._hashed_dynamic_slug(start_param)
+        payload = {
+            "channel": "generic",
+            "content_ref": content_ref,
+            "start_param": start_param,
+            "slug": slug,
+            "is_active": True,
+            "meta": {"dynamic": True},
+        }
+        try:
+            return await self.upsert(payload)
+        except IntegrityError:
+            await self.session.rollback()
+            payload["slug"] = self._hashed_dynamic_slug(start_param)
+            return await self.upsert(payload)
+
+    @staticmethod
+    def _hashed_dynamic_slug(start_param: str) -> str:
+        digest = sha256(start_param.encode("utf-8")).hexdigest()[:10]
+        return f"dyn_{digest}"

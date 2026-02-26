@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import validate_admin_token
@@ -24,20 +25,47 @@ async def list_content_map(
 
 @router.post("/upsert")
 async def upsert_content_map(payload: dict, session: AsyncSession = Depends(get_db_session)):
+    service = AdminService(ContentMapRepository(session))
     try:
-        item = await AdminService(ContentMapRepository(session)).upsert(payload)
+        item = await service.upsert(payload)
         await session.commit()
-        return item
+        return {"item": item}
     except ValueError as exc:
         await session.rollback()
-        return JSONResponse(status_code=400, content={"error": str(exc)})
+        return JSONResponse(status_code=400, content={"error": {"code": "bad_request", "message": str(exc)}})
+    except IntegrityError:
+        await session.rollback()
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": "conflict", "message": "slug already exists"}},
+        )
 
 
 @router.post("/import")
 async def import_content_map(items: list[dict], session: AsyncSession = Depends(get_db_session)):
-    result = await AdminService(ContentMapRepository(session)).import_items(items)
+    service = AdminService(ContentMapRepository(session))
+    created = 0
+    updated = 0
+    failed = 0
+    errors = []
+    for idx, item in enumerate(items):
+        try:
+            async with session.begin_nested():
+                result = await service.import_item(item)
+            if result == "created":
+                created += 1
+            else:
+                updated += 1
+        except ValueError as exc:
+            failed += 1
+            await session.rollback()
+            errors.append({"index": idx, "code": "bad_request", "message": str(exc)})
+        except IntegrityError:
+            failed += 1
+            await session.rollback()
+            errors.append({"index": idx, "code": "conflict", "message": "slug already exists"})
     await session.commit()
-    return result
+    return {"created": created, "updated": updated, "failed": failed, "errors": errors}
 
 
 @router.get("/export")
@@ -47,6 +75,13 @@ async def export_content_map(session: AsyncSession = Depends(get_db_session)):
 
 @router.post("/disable")
 async def disable_content_map(payload: dict, session: AsyncSession = Depends(get_db_session)):
-    ok = await AdminService(ContentMapRepository(session)).disable(payload["channel"], payload["content_ref"])
+    channel = payload.get("channel")
+    content_ref = payload.get("content_ref")
+    if not isinstance(channel, str) or not channel or not isinstance(content_ref, str) or not content_ref:
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"code": "bad_request", "message": "channel and content_ref are required"}},
+        )
+    ok = await AdminService(ContentMapRepository(session)).disable(channel, content_ref)
     await session.commit()
-    return {"disabled": ok}
+    return {"result": "disabled" if ok else "not_found"}

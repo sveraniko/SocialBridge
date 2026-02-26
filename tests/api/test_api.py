@@ -1,7 +1,9 @@
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_db_session
 from app.main import app
@@ -42,6 +44,10 @@ class FakeSession:
     def add(self, *_):
         return None
 
+    @asynccontextmanager
+    async def begin_nested(self):
+        yield self
+
 
 async def fake_db():
     yield FakeSession()
@@ -67,8 +73,12 @@ def client(monkeypatch):
     async def fake_click(self, payload):
         return None
 
+    async def fake_dynamic(self, start_param):
+        return SimpleNamespace(start_param=start_param, slug=f"dyn_{start_param.lower()}")
+
     monkeypatch.setattr(ContentMapRepository, "find_active_by_channel_ref", fake_find)
     monkeypatch.setattr(ContentMapRepository, "find_active_by_slug", fake_find_slug)
+    monkeypatch.setattr(ContentMapRepository, "get_or_create_dynamic_mapping", fake_dynamic)
     monkeypatch.setattr(InboundEventRepository, "insert_dedup", fake_insert)
     monkeypatch.setattr(ClickEventRepository, "create", fake_click)
 
@@ -98,3 +108,56 @@ def test_redirect(client):
     response = client.get("/t/dress001", follow_redirects=False)
     assert response.status_code == 302
     assert "t.me" in response.headers["location"]
+
+
+def test_admin_import_partial_success(client, monkeypatch):
+    state = {"written": []}
+
+    async def fake_find_by_channel_ref(self, channel, content_ref):
+        if content_ref == "exists":
+            return SimpleNamespace(channel=channel, content_ref=content_ref)
+        return None
+
+    async def fake_upsert(self, payload):
+        if payload["slug"] == "taken":
+            raise IntegrityError("stmt", "params", "orig")
+        state["written"].append(payload["content_ref"])
+        return SimpleNamespace(
+            id="1",
+            channel=payload["channel"],
+            content_ref=payload["content_ref"],
+            start_param=payload.get("start_param"),
+            slug=payload["slug"],
+            is_active=True,
+            meta=payload.get("meta", {}),
+            created_at=None,
+            updated_at=None,
+        )
+
+    monkeypatch.setattr(ContentMapRepository, "find_by_channel_ref", fake_find_by_channel_ref)
+    monkeypatch.setattr(ContentMapRepository, "upsert", fake_upsert)
+
+    response = client.post(
+        "/v1/admin/content-map/import",
+        json=[
+            {"channel": "ig", "content_ref": "ok1", "slug": "ok1", "start_param": "LOOK_A"},
+            {"channel": "ig", "content_ref": "bad", "slug": "taken", "start_param": "LOOK_B"},
+            {"channel": "ig", "content_ref": "ok2", "slug": "ok2", "start_param": "LOOK_C"},
+        ],
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert response.json()["created"] == 2
+    assert response.json()["failed"] == 1
+    assert response.json()["errors"][0]["code"] == "conflict"
+    assert state["written"] == ["ok1", "ok2"]
+
+
+def test_admin_disable_missing_payload_keys_returns_400(client):
+    response = client.post(
+        "/v1/admin/content-map/disable",
+        json={"channel": "ig"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "bad_request"

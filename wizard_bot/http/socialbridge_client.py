@@ -14,13 +14,23 @@ class SocialBridgeClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def list_campaigns(
+    async def health(self) -> dict:
+        response = await self._client.get("/health")
+        response.raise_for_status()
+        return response.json()
+
+    async def ready(self) -> dict:
+        response = await self._client.get("/ready")
+        response.raise_for_status()
+        return response.json()
+
+    async def list_content_map(
         self,
         limit: int = 50,
         offset: int = 0,
         channel: str | None = None,
         is_active: bool | None = True,
-    ) -> list[dict]:
+    ) -> dict:
         params: dict[str, object] = {"limit": limit, "offset": offset}
         if channel:
             params["channel"] = channel
@@ -28,7 +38,33 @@ class SocialBridgeClient:
             params["is_active"] = is_active
         response = await self._client.get("/v1/admin/content-map", params=params)
         response.raise_for_status()
-        return response.json().get("items", [])
+        return response.json()
+
+    async def list_campaigns(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        channel: str | None = None,
+        is_active: bool | None = True,
+    ) -> list[dict]:
+        payload = await self.list_content_map(limit=limit, offset=offset, channel=channel, is_active=is_active)
+        return payload.get("items", [])
+
+    async def export_content_map(self, channel: str | None = None, is_active: bool | None = None) -> list[dict]:
+        params: dict[str, object] = {}
+        if channel:
+            params["channel"] = channel
+        if is_active is not None:
+            params["is_active"] = is_active
+        response = await self._client.get("/v1/admin/content-map/export", params=params)
+        response.raise_for_status()
+        body = response.json()
+        return body if isinstance(body, list) else []
+
+    async def import_content_map(self, items: list[dict]) -> dict:
+        response = await self._client.post("/v1/admin/content-map/import", json=items)
+        response.raise_for_status()
+        return response.json()
 
     async def upsert_content_map(
         self,
@@ -37,6 +73,7 @@ class SocialBridgeClient:
         start_param: str | None,
         slug: str | None = None,
         meta: dict | None = None,
+        is_active: bool | None = None,
     ) -> dict:
         payload: dict[str, object] = {
             "channel": channel,
@@ -46,6 +83,8 @@ class SocialBridgeClient:
         }
         if slug:
             payload["slug"] = slug
+        if is_active is not None:
+            payload["is_active"] = is_active
         response = await self._client.post("/v1/admin/content-map/upsert", json=payload)
         response.raise_for_status()
         return response.json().get("item", {})

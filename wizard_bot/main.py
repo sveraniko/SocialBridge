@@ -6,6 +6,7 @@ import logging
 from wizard_bot.config import get_settings
 from wizard_bot.handlers.create_link import handle_wizard_input
 from wizard_bot.handlers.menu import handle_callback
+from wizard_bot.handlers.ops_tools import parse_import_payload, run_sb_call, summarize_import_result
 from wizard_bot.handlers.start import show_main
 from wizard_bot.http.socialbridge_client import SocialBridgeClient
 from wizard_bot.http.telegram_client import TelegramClient
@@ -15,8 +16,55 @@ from wizard_bot.storage.redis import get_redis, unauthorized_notice_key
 from wizard_bot.ui.clean_chat import ChatCleaner
 from wizard_bot.ui.panel import PanelManager
 from wizard_bot.ui.registry import register_message
+from wizard_bot.wizard.state import load_session, save_session
 
 logger = logging.getLogger(__name__)
+
+
+async def _handle_document_message(chat_id: int, message: dict, panel, redis, telegram, sb_client) -> bool:
+    session = await load_session(redis, chat_id)
+    if session.get("awaiting_document") != "import_content_map":
+        return False
+
+    document = message.get("document") if isinstance(message.get("document"), dict) else None
+    if not document:
+        await panel.render(
+            chat_id=chat_id,
+            text="Restore / Import\n\nPlease send a JSON document file.",
+            keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]},
+        )
+        return True
+
+    file_id = str(document.get("file_id") or "")
+    file_path, file_error = await run_sb_call(lambda: telegram.get_file(file_id), "Unable to read Telegram file")
+    if file_error or not isinstance(file_path, str):
+        await panel.render(chat_id=chat_id, text=f"Restore / Import\n\n⚠️ {file_error or 'Invalid file path'}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]})
+        return True
+
+    content, content_error = await run_sb_call(lambda: telegram.download_file(file_path), "Unable to download file")
+    if content_error or not isinstance(content, (bytes, bytearray)):
+        await panel.render(chat_id=chat_id, text=f"Restore / Import\n\n⚠️ {content_error or 'Invalid file bytes'}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]})
+        return True
+
+    try:
+        items = parse_import_payload(bytes(content))
+    except ValueError as exc:
+        await panel.render(chat_id=chat_id, text=f"Restore / Import\n\n⚠️ {exc}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]})
+        return True
+
+    result, import_error = await run_sb_call(lambda: sb_client.import_content_map(items), "Import failed")
+    if import_error:
+        await panel.render(chat_id=chat_id, text=f"Restore / Import\n\n⚠️ {import_error}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}]]})
+        return True
+
+    session["awaiting_document"] = None
+    await save_session(redis, chat_id, session)
+    await panel.render(
+        chat_id=chat_id,
+        text=summarize_import_result(result if isinstance(result, dict) else {}),
+        keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Clean Chat", "callback_data": "act:clean"}]]},
+    )
+    return True
 
 
 async def process_update(update: dict, *, settings, redis, telegram, panel, cleaner, sb_client) -> None:
@@ -49,10 +97,14 @@ async def process_update(update: dict, *, settings, redis, telegram, panel, clea
         text = message.get("text", "")
         if text.startswith("/start"):
             await show_main(panel, redis, chat_id)
-        else:
-            consumed = await handle_wizard_input(chat_id, text, panel, redis, telegram)
-            if not consumed:
-                await panel.render(chat_id=chat_id, text="Use /start to open Campaign Wizard.", keyboard={"inline_keyboard": []})
+            return
+
+        if await _handle_document_message(chat_id, message, panel, redis, telegram, sb_client):
+            return
+
+        consumed = await handle_wizard_input(chat_id, text, panel, redis, telegram)
+        if not consumed:
+            await panel.render(chat_id=chat_id, text="Use /start to open Campaign Wizard.", keyboard={"inline_keyboard": []})
         return
 
     if cb:
@@ -67,7 +119,7 @@ async def process_update(update: dict, *, settings, redis, telegram, panel, clea
                 await cleaner.clean(chat_id)
                 await show_main(panel, redis, chat_id)
             else:
-                await handle_callback(data, chat_id, panel, redis, sb_client, settings)
+                await handle_callback(data, chat_id, panel, redis, telegram, sb_client, settings)
         await telegram.answer_callback_query(callback_query["id"])
 
 

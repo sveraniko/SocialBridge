@@ -5,6 +5,7 @@ import httpx
 
 class TelegramClient:
     def __init__(self, token: str):
+        self._token = token
         self._client = httpx.AsyncClient(base_url=f"https://api.telegram.org/bot{token}", timeout=30)
 
     async def close(self) -> None:
@@ -26,6 +27,28 @@ class TelegramClient:
         response = await self._client.post("/sendMessage", json=payload)
         response.raise_for_status()
         return response.json().get("result", {})
+
+    async def send_document(self, chat_id: int, filename: str, content: bytes, caption: str | None = None) -> dict:
+        data: dict[str, str | int] = {"chat_id": chat_id}
+        if caption:
+            data["caption"] = caption
+        files = {"document": (filename, content, "application/json")}
+        response = await self._client.post("/sendDocument", data=data, files=files)
+        response.raise_for_status()
+        return response.json().get("result", {})
+
+    async def get_file(self, file_id: str) -> str:
+        response = await self._client.post("/getFile", json={"file_id": file_id})
+        response.raise_for_status()
+        result = response.json().get("result", {})
+        return str(result.get("file_path") or "")
+
+    async def download_file(self, file_path: str) -> bytes:
+        if not file_path:
+            return b""
+        response = await self._client.get(f"https://api.telegram.org/file/bot{self._token}/{file_path}")
+        response.raise_for_status()
+        return response.content
 
     async def edit_message_text(
         self,

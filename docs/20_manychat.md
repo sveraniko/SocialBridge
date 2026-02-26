@@ -250,7 +250,7 @@ Flow должен быть короткий:
 
 ## 13) Первый IG flow за 15 минут (чек-лист)
 1. Подними инфраструктуру: `docker compose up -d --build`.
-2. Прогони миграции: `docker compose exec app alembic upgrade head`.
+2. Прогони миграции: `docker compose exec api alembic upgrade head`.
 3. Импортируй минимальный seed:
    `python scripts/admin_import_map.py --base-url http://localhost:8000 --token <ADMIN_TOKEN> --file seed/content_map_seed_min.json`.
 4. Проверь резолв каталога:

@@ -238,6 +238,6 @@ SQL:
 ## Retention job (SB-API-01)
 Запуск ручной очистки событий:
 ```bash
-python -m app.jobs.retention
+docker compose exec api python -m app.jobs.retention
 ```
 Рекомендуется запускать по cron ежедневно.

@@ -41,8 +41,9 @@ class ResolveService:
         if result == ResolveResult.FALLBACK_CATALOG:
             parsed = parse_start_param_from_text(data.text)
             if parsed:
-                start_param = parsed
-                slug = parsed.lower()
+                dynamic = await self.content_repo.get_or_create_dynamic_mapping(parsed)
+                start_param = dynamic.start_param
+                slug = dynamic.slug
                 result = ResolveResult.FALLBACK_PAYLOAD
 
         reply_text = HIT_TEXT if result != ResolveResult.FALLBACK_CATALOG else CATALOG_TEXT

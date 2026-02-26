@@ -17,3 +17,7 @@ def chat_messages_key(chat_id: int) -> str:
 
 def active_panel_key(chat_id: int) -> str:
     return f"wiz:chat:{chat_id}:panel:active"
+
+
+def unauthorized_notice_key(chat_id: int) -> str:
+    return f"wiz:chat:{chat_id}:unauth:notified"

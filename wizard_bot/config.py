@@ -14,6 +14,8 @@ class WizardSettings(BaseSettings):
     SOCIALBRIDGE_ADMIN_TOKEN: str
     WIZARD_POLL_TIMEOUT_SECONDS: int = 20
     WIZARD_CAMPAIGNS_PAGE_LIMIT: int = 50
+    WIZARD_DEFAULT_CHANNEL: str = "ig"
+    WIZARD_PUBLIC_BASE_URL: str = "http://localhost:8000"
 
     @field_validator("WIZARD_ADMIN_IDS", mode="before")
     @classmethod

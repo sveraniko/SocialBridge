@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from wizard_bot.storage.redis import active_panel_key, chat_messages_key
+from wizard_bot.storage.redis import active_panel_key
+from wizard_bot.ui.registry import register_message
 
 
 class PanelManager:
@@ -20,14 +21,14 @@ class PanelManager:
                     text=text,
                     reply_markup=keyboard,
                 )
-                await self.register_message(chat_id, message_id_int)
+                await register_message(self.redis, chat_id, message_id_int)
                 return message_id_int
             except Exception:
                 pass
 
         sent = await self.telegram_client.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
         new_message_id = int(sent["message_id"])
-        await self.register_message(chat_id, new_message_id)
+        await register_message(self.redis, chat_id, new_message_id)
         await self.redis.set(active_key, new_message_id)
 
         if current_message_id and str(current_message_id).isdigit() and int(current_message_id) != new_message_id:
@@ -39,4 +40,4 @@ class PanelManager:
         return new_message_id
 
     async def register_message(self, chat_id: int, message_id: int) -> None:
-        await self.redis.sadd(chat_messages_key(chat_id), str(message_id))
+        await register_message(self.redis, chat_id, message_id)

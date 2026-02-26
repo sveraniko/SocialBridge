@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from wizard_bot.storage.redis import active_panel_key, chat_messages_key
+from wizard_bot.wizard.state import session_key
 
 
-def normalize_message_ids(values: set[str] | list[str]) -> list[int]:
+def normalize_message_ids(values: list[str]) -> list[int]:
     cleaned: set[int] = set()
     for value in values:
         if isinstance(value, str) and value.isdigit():
@@ -26,3 +27,4 @@ class ChatCleaner:
                 continue
         await self.redis.delete(key)
         await self.redis.delete(active_panel_key(chat_id))
+        await self.redis.delete(session_key(chat_id))

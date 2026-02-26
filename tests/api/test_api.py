@@ -38,11 +38,19 @@ class FakeSession:
     async def commit(self):
         return None
 
+    def __init__(self):
+        self.rollback_calls = 0
+
     async def rollback(self):
+        self.rollback_calls += 1
         return None
 
     def add(self, *_):
         return None
+
+    @asynccontextmanager
+    async def begin(self):
+        yield self
 
     @asynccontextmanager
     async def begin_nested(self):
@@ -151,6 +159,51 @@ def test_admin_import_partial_success(client, monkeypatch):
     assert response.json()["failed"] == 1
     assert response.json()["errors"][0]["code"] == "conflict"
     assert state["written"] == ["ok1", "ok2"]
+
+
+
+def test_admin_import_does_not_call_manual_rollback(client, monkeypatch):
+    session = FakeSession()
+
+    async def tracked_db():
+        yield session
+
+    app.dependency_overrides[get_db_session] = tracked_db
+
+    async def fake_find_by_channel_ref(self, channel, content_ref):
+        return None
+
+    async def fake_upsert(self, payload):
+        if payload["slug"] == "taken":
+            raise IntegrityError("stmt", "params", "orig")
+        return SimpleNamespace(
+            id="1",
+            channel=payload["channel"],
+            content_ref=payload["content_ref"],
+            start_param=payload.get("start_param"),
+            slug=payload["slug"],
+            is_active=True,
+            meta=payload.get("meta", {}),
+            created_at=None,
+            updated_at=None,
+        )
+
+    monkeypatch.setattr(ContentMapRepository, "find_by_channel_ref", fake_find_by_channel_ref)
+    monkeypatch.setattr(ContentMapRepository, "upsert", fake_upsert)
+
+    response = client.post(
+        "/v1/admin/content-map/import",
+        json=[
+            {"channel": "ig", "content_ref": "ok1", "slug": "ok1", "start_param": "LOOK_A"},
+            {"channel": "ig", "content_ref": "bad", "slug": "taken", "start_param": "LOOK_B"},
+            {"channel": "ig", "content_ref": "ok2", "slug": "ok2", "start_param": "LOOK_C"},
+        ],
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert response.json()["created"] == 2
+    assert response.json()["failed"] == 1
+    assert session.rollback_calls == 0
 
 
 def test_admin_disable_missing_payload_keys_returns_400(client):

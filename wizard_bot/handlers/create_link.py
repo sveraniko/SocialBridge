@@ -1,3 +1,4 @@
+from wizard_bot.storage.locks import ChatLock
 from wizard_bot.handlers.ops_tools import run_sb_call
 from wizard_bot.wizard.panels import render_step
 from wizard_bot.wizard.state import apply_back, apply_step, ensure_campaign_key, load_session, reset_session, save_session
@@ -92,27 +93,34 @@ async def handle_wizard_callback(data: str, chat_id: int, panel, redis, sb_clien
 
 
 async def handle_wizard_input(chat_id: int, text: str, panel, redis, telegram) -> bool:
-    session = await load_session(redis, chat_id)
-    field = session.get("awaiting_input")
-    if not field:
+    initial_session = await load_session(redis, chat_id)
+    if not initial_session.get("awaiting_input"):
         return False
-    if field == "start_param":
-        ok, cleaned, error = validate_start_param(str(session.get("kind")), text)
-        if not ok:
-            session["error"] = error
-        else:
-            session["start_param"] = cleaned
-            apply_step(session, "slug_choice")
-    elif field == "slug":
-        ok, cleaned, error = validate_slug(text)
-        if not ok:
-            session["error"] = error
-        else:
-            session["slug"] = cleaned
-            apply_step(session, "confirm")
-    await save_session(redis, chat_id, session)
-    await render_step(panel, chat_id, session)
-    return True
+
+    async with ChatLock(redis, chat_id, ttl_ms=12000) as lock:
+        if not lock.acquired:
+            return True
+        session = await load_session(redis, chat_id)
+        field = session.get("awaiting_input")
+        if not field:
+            return True
+        if field == "start_param":
+            ok, cleaned, error = validate_start_param(str(session.get("kind")), text)
+            if not ok:
+                session["error"] = error
+            else:
+                session["start_param"] = cleaned
+                apply_step(session, "slug_choice")
+        elif field == "slug":
+            ok, cleaned, error = validate_slug(text)
+            if not ok:
+                session["error"] = error
+            else:
+                session["slug"] = cleaned
+                apply_step(session, "confirm")
+        await save_session(redis, chat_id, session)
+        await render_step(panel, chat_id, session)
+        return True
 
 
 async def go_back(panel, redis, chat_id: int) -> bool:

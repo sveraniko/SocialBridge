@@ -9,7 +9,7 @@ class ChatLock:
         self.chat_id = chat_id
         self.ttl_ms = ttl_ms
         self._token = secrets.token_hex(8)
-        self._key = f"wiz:chat:{chat_id}:lock"
+        self._key = f"wiz:lock:chat:{chat_id}"
         self.acquired = False
 
     async def __aenter__(self) -> "ChatLock":

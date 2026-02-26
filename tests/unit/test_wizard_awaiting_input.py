@@ -10,8 +10,14 @@ class FakeRedis:
     async def get(self, key):
         return self.db.get(key)
 
-    async def set(self, key, value):
+    async def set(self, key, value, nx=False, px=None, ex=None):
+        if nx and key in self.db:
+            return False
         self.db[key] = value
+        return True
+
+    async def delete(self, key):
+        self.db.pop(key, None)
 
 
 class FakePanel:

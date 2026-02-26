@@ -233,3 +233,10 @@ SQL:
 - Cloudflare перед `go.DOMAIN` (если начнут сканить)
 - Redis только если нужен rate-limit/кеш
 
+
+## Retention job (SB-API-01)
+Запуск ручной очистки событий:
+```bash
+python -m app.jobs.retention
+```
+Рекомендуется запускать по cron ежедневно.

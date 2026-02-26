@@ -271,3 +271,36 @@ Auth: `X-Admin-Token: ...`
 - UI-админка (простая) вместо сырых endpoint-ов
 - Экспорт отчётов по slug/campaign
 - Интеграция “campaign” в SIS events (если решим трогать SIS, но это отдельный проект)
+
+---
+
+## Quick local run (SB-API-01)
+1. Copy env:
+   ```bash
+   cp .env.example .env
+   ```
+2. Start stack:
+   ```bash
+   docker compose up -d --build
+   ```
+3. Apply migrations:
+   ```bash
+   docker compose exec api alembic upgrade head
+   ```
+
+## Smoke test
+```bash
+curl -s http://localhost:8000/health
+curl -s -X POST http://localhost:8000/v1/admin/content-map/upsert \
+  -H 'Content-Type: application/json' -H 'X-Admin-Token: change-me-admin' \
+  -d '{"channel":"ig","content_ref":"campaign:dress001","start_param":"DRESS001","slug":"dress001","is_active":true,"meta":{}}'
+curl -s -X POST http://localhost:8000/v1/mc/resolve \
+  -H 'Content-Type: application/json' -H 'X-MC-Token: change-me-mc' \
+  -d '{"channel":"ig","content_ref":"campaign:dress001"}'
+curl -i http://localhost:8000/t/dress001
+```
+
+Retention job:
+```bash
+python -m app.jobs.retention
+```

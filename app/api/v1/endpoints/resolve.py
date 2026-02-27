@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.manychat_normalizer import normalize
+from app.api.v1.schemas import ResolveResponse
 from app.core.config import get_settings
 from app.core.errors import error_response
 from app.core.security import validate_mc_token
@@ -13,7 +14,7 @@ from app.services.resolve_service import ResolveService
 router = APIRouter(prefix="/v1/mc", tags=["manychat"])
 
 
-@router.post("/resolve", dependencies=[Depends(validate_mc_token)])
+@router.post("/resolve", dependencies=[Depends(validate_mc_token)], response_model=ResolveResponse)
 async def resolve_manychat(
     payload: dict,
     request_id: str | None = Header(default=None, alias="X-Request-Id"),
@@ -32,6 +33,7 @@ async def resolve_manychat(
     return {
         "reply_text": output.reply_text,
         "url": output.url,
+        "tg_url": output.tg_url,
         "start_param": output.start_param,
         "slug": output.slug,
         "tag": output.tag,

@@ -430,3 +430,34 @@ def test_admin_import_invalid_payload_error_format(client):
     assert body["error"]["code"] == "bad_request"
     assert body["error"]["field"] == "items"
     assert "request_id" in body["error"]
+
+def test_resolve_includes_tg_url_with_start_param(client):
+    response = client.post("/v1/mc/resolve", json={"channel": "ig", "content_ref": "campaign:dress001"})
+    assert response.status_code == 200
+    assert response.json()["tg_url"].endswith("?start=DRESS001")
+
+
+def test_resolve_catalog_includes_base_tg_url(client):
+    response = client.post("/v1/mc/resolve", json={"channel": "ig"})
+    assert response.status_code == 200
+    assert response.json()["tg_url"] == "https://t.me/sisbot"
+
+
+def test_resolve_preview_includes_tg_url_with_start_param(client):
+    response = client.post(
+        "/v1/admin/resolve-preview",
+        json={"channel": "ig", "content_ref": "campaign:dress001"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert response.json()["tg_url"].endswith("?start=DRESS001")
+
+
+def test_resolve_preview_catalog_includes_base_tg_url(client):
+    response = client.post(
+        "/v1/admin/resolve-preview",
+        json={"channel": "ig"},
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    assert response.json()["tg_url"] == "https://t.me/sisbot"

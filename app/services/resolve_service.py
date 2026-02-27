@@ -1,6 +1,7 @@
 import logging
 import time
 
+from app.adapters.deeplink import build_tg_deeplink
 from app.adapters.hashing import payload_hash
 from app.adapters.shortlink import build_shortlink
 from app.core.config import Settings
@@ -66,6 +67,7 @@ class ResolveService:
         output = ResolveOutput(
             reply_text=reply_text,
             url=build_shortlink(self.settings.BASE_URL, slug),
+            tg_url=build_tg_deeplink(self.settings.SIS_BOT_USERNAME, start_param),
             start_param=start_param,
             slug=slug,
             tag=tag,

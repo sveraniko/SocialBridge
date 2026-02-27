@@ -12,8 +12,6 @@ def validate_start_param(kind: str, value: str | None) -> tuple[bool, str | None
         return False, None, "Value is required."
     if not START_PARAM_RE.match(text):
         return False, None, "Use only letters, digits, _ or -, max 64 chars."
-    if kind == "look" and not text.startswith("LOOK_"):
-        return False, None, "Look code must start with LOOK_."
     return True, text, None
 
 

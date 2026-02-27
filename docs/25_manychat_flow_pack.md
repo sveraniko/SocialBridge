@@ -233,3 +233,20 @@ JSON Body template:
 - Всегда используй `campaign:*` как основной `content_ref` для операционной прозрачности.
 - Для каталога держи отдельный fallback flow (`SB_IG_FALLBACK`) и запись реестра с пустым `start_param`.
 - Перед массовым запуском новых flows сначала валидируй CSV -> JSON скриптом.
+
+
+### 4.6 Keyword DM flows (BUY / LOOK / CAT)
+Use separate DM keyword triggers by intent kind:
+
+- Product: user sends `BUY <CODE>`
+- Look: user sends `LOOK <CODE>`
+- Catalog: user sends `CAT`
+
+Common setup:
+- `sb_channel = ig`
+- `sb_content_ref = campaign:<campaign_key>`
+- External Request: `POST /v1/mc/resolve`
+
+Expected resolve behavior:
+- BUY/LOOK → `result=fallback_payload`
+- CAT → `result=fallback_catalog`

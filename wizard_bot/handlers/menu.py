@@ -222,8 +222,10 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
 
         if data == "camp:manychat":
             mode = ""
+            kind = ""
             if isinstance(campaign.get("meta"), dict):
                 mode = str(campaign.get("meta", {}).get("mode") or "")
+                kind = str(campaign.get("meta", {}).get("kind") or "")
             # Compute tg_url with fallback
             _tg_url = campaign.get("tg_url")
             if not _tg_url and campaign.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
@@ -236,7 +238,11 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
                 mc_resolve_url=settings.WIZARD_MC_RESOLVE_URL,
                 mc_token=settings.WIZARD_MC_TOKEN,
                 mode=mode,
+                kind=kind,
                 start_param=campaign.get("start_param"),
+                keyword_product=getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY"),
+                keyword_look=getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK"),
+                keyword_catalog=getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT"),
             )
             await panel.render(
                 chat_id=chat_id,

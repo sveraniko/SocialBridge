@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     RETENTION_CLICK_DAYS: int = 365
     DYNAMIC_MAPPING_MAX_PER_DAY: int = 500
     LOG_LEVEL: str = "INFO"
+    KEYWORD_PRODUCT: str = "BUY"
+    KEYWORD_LOOK: str = "LOOK"
+    KEYWORD_CATALOG: str = "CAT"
+    KEYWORD_CASE_SENSITIVE: bool = False
 
     @field_validator("IP_HASH_SALT")
     @classmethod

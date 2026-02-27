@@ -6,7 +6,7 @@ from app.adapters.hashing import payload_hash
 from app.adapters.shortlink import build_shortlink
 from app.core.config import Settings
 from app.domain.types import ResolveInput, ResolveOutput, ResolveResult
-from app.domain.validators import parse_start_param_from_text
+from app.domain.validators import parse_keyword_payload, parse_start_param_from_text
 from app.repositories.content_map_repo import ContentMapRepository
 from app.repositories.inbound_event_repo import InboundEventRepository
 
@@ -49,7 +49,16 @@ class ResolveService:
                 tag = f"{data.channel}|{data.content_ref}"
 
         if result == ResolveResult.FALLBACK_CATALOG:
-            parsed = parse_start_param_from_text(data.text)
+            parsed_keyword, parsed_result = parse_keyword_payload(
+                data.text,
+                keyword_product=self.settings.KEYWORD_PRODUCT,
+                keyword_look=self.settings.KEYWORD_LOOK,
+                keyword_catalog=self.settings.KEYWORD_CATALOG,
+                case_sensitive=self.settings.KEYWORD_CASE_SENSITIVE,
+            )
+            parsed = parsed_keyword
+            if parsed is None and parsed_result == "fallback_catalog":
+                parsed = parse_start_param_from_text(data.text)
             if parsed:
                 dynamic_count = await self.content_repo.count_dynamic_created_last_24h()
                 if dynamic_count >= self.settings.DYNAMIC_MAPPING_MAX_PER_DAY:

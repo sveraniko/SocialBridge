@@ -1,16 +1,29 @@
 from __future__ import annotations
 
 
+def mode1_trigger_text(kind: str | None, start_param: str | None, keyword_product: str, keyword_look: str, keyword_catalog: str) -> str:
+    kind_value = str(kind or "").lower()
+    if kind_value == "catalog":
+        return keyword_catalog
+    code = start_param or "CODE"
+    keyword = keyword_look if kind_value == "look" else keyword_product
+    return f"{keyword} {code}"
+
+
 def build_manychat_snippet(
     *,
     channel: str,
     content_ref: str,
     url: str,
     tg_url: str,
-    mc_resolve_url: str,
-    mc_token: str,
+    mc_resolve_url: str = "https://your-domain.com/v1/mc/resolve",
+    mc_token: str = "<YOUR_MC_TOKEN>",
     mode: str | None = None,
+    kind: str | None = None,
     start_param: str | None = None,
+    keyword_product: str = "BUY",
+    keyword_look: str = "LOOK",
+    keyword_catalog: str = "CAT",
 ) -> str:
     lines = [
         "ManyChat Snippet",
@@ -36,8 +49,7 @@ def build_manychat_snippet(
     ]
 
     if str(mode) == "1":
-        code = start_param or "CODE"
-        lines.extend(["", f"Comment trigger: BUY {code}", f"BUY {code}"])
+        trigger = mode1_trigger_text(kind, start_param, keyword_product, keyword_look, keyword_catalog)
+        lines.extend(["", f"Comment trigger: {trigger}", trigger])
 
     return "\n".join(lines)
-

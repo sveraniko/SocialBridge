@@ -13,6 +13,7 @@ def main_menu_keyboard() -> dict:
             [_button("Backup / Export", "ops:export")],
             [_button("Restore / Import", "ops:import")],
             [_button("Status", "ops:status")],
+            [_button("Analytics", "nav:ANALYTICS")],
             [_button("Home", "act:clean")],
         ]
     }
@@ -48,18 +49,34 @@ def search_prompt_keyboard() -> dict:
     }
 
 
-def campaign_view_keyboard(is_active: bool, delete_confirm: bool = False) -> dict:
+def campaign_view_keyboard(is_active: bool, delete_confirm: bool = False, has_analytics: bool = True) -> dict:
     toggle_text = "Disable" if is_active else "Enable"
     toggle_action = "camp:disable" if is_active else "camp:enable"
     delete_btn = _button("❌ Confirm Delete", "camp:delete:confirm") if delete_confirm else _button("Delete", "camp:delete")
     snippet_row = [_button("ManyChat Snippet", "camp:manychat")]
-    return {
-        "inline_keyboard": [
+    analytics_row = [_button("Analytics", "camp:analytics")] if has_analytics else []
+    rows = [
             [_button(toggle_text, toggle_action), delete_btn],
             [_button("Resolve Preview", "camp:preview")],
             snippet_row,
+    ]
+    if analytics_row:
+        rows.append(analytics_row)
+    rows.extend([
             [_button("➕ New", "nav:CREATE_LINK"), _button("Back to list", "camp:back_to_list")],
             [_button("Main Menu", "nav:MAIN"), _button("Home", "act:clean")],
+    ])
+    return {
+        "inline_keyboard": rows
+    }
+
+
+def analytics_keyboard(hours: int, back_callback: str = "nav:MAIN") -> dict:
+    return {
+        "inline_keyboard": [
+            [_button("24h", "analytics:hours:24"), _button("7d", "analytics:hours:168")],
+            [_button("Top", "analytics:top")],
+            [_button("Back", back_callback), _button("Home", "act:clean")],
         ]
     }
 

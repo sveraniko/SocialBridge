@@ -190,7 +190,25 @@ python scripts/admin_import_map.py \
 
 ---
 
-## 8) Notes on dynamic count implementation
-`ops_status.py` считает dynamic mappings за последние 24 часа через текущий admin export (`/v1/admin/content-map/export`) и поля `meta.dynamic + created_at`.
+## 8) Analytics in Wizard / Admin API
 
-Это намеренно сделано без новых API endpoints (контракт не меняем).
+Новые операторские endpoints для базовой воронки IG:
+- `GET /v1/admin/stats/overview?hours=24|168`
+- `GET /v1/admin/stats/top?hours=24|168&limit=20`
+- `GET /v1/admin/stats/campaign?content_ref=...&hours=24|168`
+
+Что измеряем:
+- `resolves_total` — число resolve событий (`sb_inbound_event`) за окно.
+- `resolves_by_result` — разрез `hit / fallback_payload / fallback_catalog`.
+- `clicks_total` — число кликов/редиректов (`sb_click_event`) за окно.
+- `ctr_bridge` — `clicks_total / resolves_total` (с защитой от деления на 0).
+- `redirect_miss_total` — клики с `meta.miss=true` (slug не найден/неактивен).
+- топ кампаний по кликам и по resolve.
+
+Что **не** измеряем (важно):
+- нет заказов/выручки/покупок (purchase attribution пока не внедрен);
+- нет user-level/PII аналитики (агрегированные счетчики только по событиям);
+- нет cohort/funnel до оплаты — только bridge-часть: resolve → click.
+
+## 9) Notes on dynamic count implementation
+`ops_status.py` по-прежнему считает dynamic mappings за 24 часа через admin export (`/v1/admin/content-map/export`) и поля `meta.dynamic + created_at`.

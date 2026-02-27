@@ -9,7 +9,7 @@ from wizard_bot.handlers.ops_tools import build_status_text, count_recent_dynami
 from wizard_bot.handlers.start import show_main
 from wizard_bot.nav import routes
 from wizard_bot.nav.stack import pop_route, push_route
-from wizard_bot.ui.keyboards import search_prompt_keyboard
+from wizard_bot.ui.keyboards import analytics_keyboard, search_prompt_keyboard
 from wizard_bot.ui.manychat import build_manychat_snippet
 from wizard_bot.wizard.state import load_session, save_session
 
@@ -59,6 +59,45 @@ async def _send_backup(chat_id: int, panel, messenger, sb_client) -> None:
     await panel.render(chat_id=chat_id, text=f"Backup sent as {filename}", keyboard={"inline_keyboard": [[{"text": "Main Menu", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}]]})
 
 
+def _format_overview_text(payload: dict, title: str = "Analytics") -> str:
+    by_result = payload.get("resolves_by_result") if isinstance(payload.get("resolves_by_result"), dict) else {}
+    ctr = float(payload.get("ctr_bridge") or 0.0) * 100
+    return "\n".join(
+        [
+            f"{title} ({int(payload.get('hours', 24))}h)",
+            "",
+            f"• resolves_total: {int(payload.get('resolves_total', 0))}",
+            f"• hit: {int(by_result.get('hit', 0))}",
+            f"• fallback_payload: {int(by_result.get('fallback_payload', 0))}",
+            f"• fallback_catalog: {int(by_result.get('fallback_catalog', 0))}",
+            f"• clicks_total: {int(payload.get('clicks_total', 0))}",
+            f"• ctr_bridge: {ctr:.1f}%",
+            f"• redirect_miss_total: {int(payload.get('redirect_miss_total', 0))}",
+        ]
+    )
+
+
+def _format_top_text(payload: dict) -> str:
+    click_rows = payload.get("top_campaigns_by_clicks") if isinstance(payload.get("top_campaigns_by_clicks"), list) else []
+    resolve_rows = payload.get("top_campaigns_by_resolves") if isinstance(payload.get("top_campaigns_by_resolves"), list) else []
+    lines = [f"Analytics Top ({int(payload.get('hours', 24))}h)", "", "By clicks:"]
+    if not click_rows:
+        lines.append("• no data")
+    else:
+        for row in click_rows[:10]:
+            if isinstance(row, dict):
+                lines.append(f"• {row.get('content_ref')}: {int(row.get('clicks_total', 0))}")
+
+    lines.extend(["", "By resolves:"])
+    if not resolve_rows:
+        lines.append("• no data")
+    else:
+        for row in resolve_rows[:10]:
+            if isinstance(row, dict):
+                lines.append(f"• {row.get('content_ref')}: {int(row.get('resolves_total', 0))}")
+    return "\n".join(lines)
+
+
 async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messenger, sb_client, settings) -> None:
     if data == "nav:CREATE_LINK":
         await push_route(redis, chat_id, routes.CREATE_LINK, routes.MAIN)
@@ -66,6 +105,17 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         return
 
     if await handle_wizard_callback(data, chat_id, panel, redis, sb_client, settings):
+        return
+
+    if data == "nav:ANALYTICS":
+        await push_route(redis, chat_id, routes.ANALYTICS, routes.MAIN)
+        session = await load_session(redis, chat_id)
+        session["analytics_hours"] = 24
+        session.pop("analytics_campaign", None)
+        await save_session(redis, chat_id, session)
+        payload, error = await run_sb_call(lambda: sb_client.stats_overview(hours=24), "analytics overview failed")
+        text = _format_overview_text(payload) if error is None and isinstance(payload, dict) else f"Analytics\n\n⚠️ {error or 'failed to load analytics'}"
+        await panel.render(chat_id=chat_id, text=text, keyboard=analytics_keyboard(hours=24, back_callback="act:back"))
         return
 
     if data == f"nav:{routes.CAMPAIGNS_LIST}":
@@ -153,7 +203,7 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         await render_campaign_view(panel, redis, chat_id, settings)
         return
 
-    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete", "camp:delete:confirm", "camp:manychat"}:
+    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete", "camp:delete:confirm", "camp:manychat", "camp:analytics"}:
         session = await load_session(redis, chat_id)
         campaign = session.get("campaign_view") if isinstance(session.get("campaign_view"), dict) else None
         if not campaign:
@@ -179,6 +229,21 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
                 chat_id=chat_id,
                 text=snippet,
                 keyboard={"inline_keyboard": [[{"text": "Back", "callback_data": "camp:snippet:back"}, {"text": "Home", "callback_data": "act:clean"}]]},
+            )
+            return
+
+        if data == "camp:analytics":
+            session["analytics_campaign"] = content_ref
+            await save_session(redis, chat_id, session)
+            payload, error = await run_sb_call(
+                lambda: sb_client.stats_campaign(content_ref=content_ref, hours=24),
+                "campaign analytics failed",
+            )
+            text = _format_overview_text(payload, title=f"Campaign Analytics\n{content_ref}") if error is None and isinstance(payload, dict) else f"Campaign Analytics\n\n⚠️ {error or 'failed to load campaign analytics'}"
+            await panel.render(
+                chat_id=chat_id,
+                text=text,
+                keyboard=analytics_keyboard(hours=24, back_callback="camp:view:analytics_back"),
             )
             return
 
@@ -254,6 +319,41 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         return
 
     if data == "camp:snippet:back":
+        await render_campaign_view(panel, redis, chat_id, settings)
+        return
+
+    if data.startswith("analytics:hours:"):
+        hours = int(data.split(":")[-1])
+        session = await load_session(redis, chat_id)
+        session["analytics_hours"] = hours
+        await save_session(redis, chat_id, session)
+        back_callback = "camp:view:analytics_back" if session.get("analytics_campaign") else "act:back"
+        if session.get("analytics_campaign"):
+            content_ref = str(session.get("analytics_campaign"))
+            payload, error = await run_sb_call(
+                lambda: sb_client.stats_campaign(content_ref=content_ref, hours=hours),
+                "campaign analytics failed",
+            )
+            text = _format_overview_text(payload, title=f"Campaign Analytics\n{content_ref}") if error is None and isinstance(payload, dict) else f"Campaign Analytics\n\n⚠️ {error or 'failed to load campaign analytics'}"
+        else:
+            payload, error = await run_sb_call(lambda: sb_client.stats_overview(hours=hours), "analytics overview failed")
+            text = _format_overview_text(payload) if error is None and isinstance(payload, dict) else f"Analytics\n\n⚠️ {error or 'failed to load analytics'}"
+        await panel.render(chat_id=chat_id, text=text, keyboard=analytics_keyboard(hours=hours, back_callback=back_callback))
+        return
+
+    if data == "analytics:top":
+        session = await load_session(redis, chat_id)
+        back_callback = "camp:view:analytics_back" if session.get("analytics_campaign") else "act:back"
+        hours = int(session.get("analytics_hours") or 24)
+        payload, error = await run_sb_call(lambda: sb_client.stats_top(hours=hours, limit=20), "analytics top failed")
+        text = _format_top_text(payload) if error is None and isinstance(payload, dict) else f"Analytics Top\n\n⚠️ {error or 'failed to load analytics top'}"
+        await panel.render(chat_id=chat_id, text=text, keyboard=analytics_keyboard(hours=hours, back_callback=back_callback))
+        return
+
+    if data == "camp:view:analytics_back":
+        session = await load_session(redis, chat_id)
+        session.pop("analytics_campaign", None)
+        await save_session(redis, chat_id, session)
         await render_campaign_view(panel, redis, chat_id, settings)
         return
 

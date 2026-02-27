@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_db_session
 from app.main import app
+from app.repositories.admin_stats_repo import AdminStatsRepository
 from app.repositories.click_event_repo import ClickEventRepository
 from app.repositories.content_map_repo import ContentMapRepository
 from app.repositories.inbound_event_repo import InboundEventRepository
@@ -461,3 +462,29 @@ def test_resolve_preview_catalog_includes_base_tg_url(client):
     )
     assert response.status_code == 200
     assert response.json()["tg_url"] == "https://t.me/sisbot"
+
+
+
+def test_admin_stats_overview_endpoint(client, monkeypatch):
+    async def fake_overview(self, hours):
+        assert hours == 24
+        return {
+            "hours": hours,
+            "resolves_total": 10,
+            "resolves_by_result": {"hit": 7, "fallback_payload": 2, "fallback_catalog": 1},
+            "clicks_total": 5,
+            "ctr_bridge": 0.5,
+            "redirect_miss_total": 1,
+        }
+
+    monkeypatch.setattr(AdminStatsRepository, "overview", fake_overview)
+
+    response = client.get(
+        "/v1/admin/stats/overview?hours=24",
+        headers={"X-Admin-Token": "change-me-admin"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["resolves_total"] == 10
+    assert body["clicks_total"] == 5
+    assert body["ctr_bridge"] == 0.5

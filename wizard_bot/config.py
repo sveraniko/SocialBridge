@@ -19,6 +19,10 @@ class WizardSettings(BaseSettings):
     WIZARD_SIS_BOT_USERNAME: str = ""
     WIZARD_MC_RESOLVE_URL: str = "https://your-domain.com/v1/mc/resolve"
     WIZARD_MC_TOKEN: str = "<YOUR_MC_TOKEN>"
+    WIZARD_KEYWORD_PRODUCT: str = "BUY"
+    WIZARD_KEYWORD_LOOK: str = "LOOK"
+    WIZARD_KEYWORD_CATALOG: str = "CAT"
+    WIZARD_KEYWORD_CASE_SENSITIVE: bool = False
 
     @field_validator("WIZARD_ADMIN_IDS", mode="before")
     @classmethod

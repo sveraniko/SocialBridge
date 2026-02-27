@@ -10,7 +10,7 @@ from wizard_bot.wizard.state import ensure_campaign_key
 
 MODE_TEXT = {
     "0": "Direct shortlink only",
-    "1": "Keyword BUY + code",
+    "1": "Keyword mode (by kind)",
     "2": "Per-post comment-to-DM mapping",
 }
 
@@ -24,7 +24,7 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         kb = {
             "inline_keyboard": [
                 [{"text": "Mode 0 · Direct shortlink", "callback_data": "wiz:mode:0"}],
-                [{"text": "Mode 1 · BUY + code", "callback_data": "wiz:mode:1"}],
+                [{"text": "Mode 1 · Keyword + code", "callback_data": "wiz:mode:1"}],
                 [{"text": "Mode 2 · Comment→DM mapping", "callback_data": "wiz:mode:2"}],
                 [{"text": "Cancel", "callback_data": "nav:MAIN"}, {"text": "Home", "callback_data": "act:clean"}],
             ]
@@ -34,9 +34,9 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         kb = kind_keyboard()
     elif step == "start_param":
         if data.get("kind") == "product":
-            prompt = "Enter product code (example: DRESS001)."
+            prompt = "Enter product code/start_param (example: BOIZMRJS)."
         elif data.get("kind") == "look":
-            prompt = "Enter look code (must start with LOOK_)."
+            prompt = "Enter look code/start_param (example: LOOK_SPRING26 or SPRING26)."
         else:
             prompt = "Enter start param."
         text = f"Create campaign/link\n\nStep 3/5: {prompt}\n\nSend one text message."
@@ -59,8 +59,14 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
             f"• {'product code' if data.get('kind') == 'product' else 'look code' if data.get('kind') == 'look' else 'start_param'}: {data.get('start_param') or 'NULL'}",
             f"• slug: {data.get('slug') or 'auto'}",
         ]
-        if str(data.get("mode")) == "1" and data.get("start_param"):
-            lines.append(f"• note: BUY {data['start_param']}")
+        if str(data.get("mode")) == "1":
+            keyword_product = getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY") if settings else "BUY"
+            keyword_look = getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK") if settings else "LOOK"
+            keyword_catalog = getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT") if settings else "CAT"
+            from wizard_bot.ui.manychat import mode1_trigger_text
+            lines.append(
+                f"• note: {mode1_trigger_text(data.get('kind'), data.get('start_param'), keyword_product, keyword_look, keyword_catalog)}"
+            )
         text = "\n".join(lines)
         kb = {
             "inline_keyboard": [
@@ -82,9 +88,14 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         if mode == "0":
             lines.append(f"Link for bio/story/pinned comment: {shortlink}")
         elif mode == "1":
-            code = data.get("start_param") or "CODE"
-            lines.extend([f"Комментируй: BUY {code}", f"BUY {code}"])
+            keyword_product = getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY") if settings else "BUY"
+            keyword_look = getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK") if settings else "LOOK"
+            keyword_catalog = getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT") if settings else "CAT"
+            from wizard_bot.ui.manychat import mode1_trigger_text
+            trigger = mode1_trigger_text(data.get("kind"), data.get("start_param"), keyword_product, keyword_look, keyword_catalog)
+            lines.extend([f"Комментируй: {trigger}", trigger])
         else:
+            lines.append("Post-specific campaign mapping (comment→DM).")
             # Compute tg_url with fallback
             _tg_url = item.get("tg_url")
             if not _tg_url and data.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
@@ -98,7 +109,11 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
                     mc_resolve_url=getattr(settings, "WIZARD_MC_RESOLVE_URL", "https://your-domain.com/v1/mc/resolve"),
                     mc_token=getattr(settings, "WIZARD_MC_TOKEN", "<YOUR_MC_TOKEN>"),
                     mode=mode,
+                    kind=data.get("kind"),
                     start_param=data.get("start_param"),
+                    keyword_product=getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY"),
+                    keyword_look=getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK"),
+                    keyword_catalog=getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT"),
                 ).splitlines()
             )
         status_line = data.get("result_status")

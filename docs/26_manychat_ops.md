@@ -212,3 +212,19 @@ python scripts/admin_import_map.py \
 
 ## 9) Notes on dynamic count implementation
 `ops_status.py` по-прежнему считает dynamic mappings за 24 часа через admin export (`/v1/admin/content-map/export`) и поля `meta.dynamic + created_at`.
+
+
+## Keyword intents (BUY / LOOK / CAT)
+
+SocialBridge and Wizard support 3 configurable keywords:
+
+- `BUY <CODE>` → product intent (`fallback_payload`, `start_param=<CODE>`)
+- `LOOK <CODE>` → look intent (`fallback_payload`, `start_param=LOOK_<CODE>` if prefix missing)
+- `CAT` → catalog intent (`fallback_catalog`, `start_param=null`)
+
+Recommended ManyChat triggers:
+- DM contains `BUY`
+- DM contains `LOOK`
+- DM equals `CAT`
+
+Keywords are configurable via env (`WIZARD_KEYWORD_*` in wizard, `KEYWORD_*` in API).

@@ -24,3 +24,49 @@ def parse_start_param_from_text(text: str | None) -> str | None:
         if PRODUCT_CODE_RE.fullmatch(token):
             return token
     return None
+
+
+def parse_keyword_payload(
+    text: str | None,
+    *,
+    keyword_product: str,
+    keyword_look: str,
+    keyword_catalog: str,
+    case_sensitive: bool = False,
+) -> tuple[str | None, str]:
+    if not text:
+        return None, "fallback_catalog"
+
+    raw = text.strip()
+    if not raw:
+        return None, "fallback_catalog"
+    parts = raw.split()
+    if not parts:
+        return None, "fallback_catalog"
+
+    keyword = parts[0] if case_sensitive else parts[0].upper()
+    kw_product = keyword_product if case_sensitive else keyword_product.upper()
+    kw_look = keyword_look if case_sensitive else keyword_look.upper()
+    kw_catalog = keyword_catalog if case_sensitive else keyword_catalog.upper()
+
+    if keyword == kw_catalog and len(parts) == 1:
+        return None, "fallback_catalog"
+
+    if len(parts) < 2:
+        return None, "fallback_catalog"
+
+    code = parts[1].strip()
+    if not is_valid_start_param(code):
+        return None, "fallback_catalog"
+
+    if keyword == kw_product:
+        return code, "fallback_payload"
+
+    if keyword == kw_look:
+        if code.startswith("LOOK_"):
+            return code, "fallback_payload"
+        look_code = f"LOOK_{code}"
+        if is_valid_start_param(look_code):
+            return look_code, "fallback_payload"
+
+    return None, "fallback_catalog"

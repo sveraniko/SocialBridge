@@ -15,7 +15,7 @@ MODE_TEXT = {
 }
 
 
-async def render_step(panel, chat_id: int, data: dict) -> None:
+async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
     step = data.get("step", "mode")
     error = data.get("error")
 
@@ -85,12 +85,18 @@ async def render_step(panel, chat_id: int, data: dict) -> None:
             code = data.get("start_param") or "CODE"
             lines.extend([f"Комментируй: BUY {code}", f"BUY {code}"])
         else:
+            # Compute tg_url with fallback
+            _tg_url = item.get("tg_url")
+            if not _tg_url and data.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
+                _tg_url = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={data.get('start_param')}"
             lines.extend(
                 build_manychat_snippet(
                     channel="ig",
                     content_ref=f"campaign:{key}",
                     url=shortlink,
-                    tg_url=str(item.get("tg_url") or "-"),
+                    tg_url=str(_tg_url or "-"),
+                    mc_resolve_url=getattr(settings, "WIZARD_MC_RESOLVE_URL", "https://your-domain.com/v1/mc/resolve"),
+                    mc_token=getattr(settings, "WIZARD_MC_TOKEN", "<YOUR_MC_TOKEN>"),
                     mode=mode,
                     start_param=data.get("start_param"),
                 ).splitlines()

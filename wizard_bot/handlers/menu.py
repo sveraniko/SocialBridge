@@ -167,6 +167,13 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
             offset=int(session.get("campaigns_offset") or 0),
         )
         return
+    if data == "camp:view:analytics_back":
+        session = await load_session(redis, chat_id)
+        session.pop("analytics_campaign", None)
+        await save_session(redis, chat_id, session)
+        await render_campaign_view(panel, redis, chat_id, settings)
+        return
+
     if data.startswith("camp:view:"):
         key = data.split(":", 2)[-1]
         session = await load_session(redis, chat_id)
@@ -217,11 +224,17 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
             mode = ""
             if isinstance(campaign.get("meta"), dict):
                 mode = str(campaign.get("meta", {}).get("mode") or "")
+            # Compute tg_url with fallback
+            _tg_url = campaign.get("tg_url")
+            if not _tg_url and campaign.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
+                _tg_url = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={campaign.get('start_param')}"
             snippet = build_manychat_snippet(
                 channel=channel or settings.WIZARD_DEFAULT_CHANNEL,
                 content_ref=content_ref,
                 url=str(campaign.get("url") or f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{campaign.get('slug') or 'catalog'}"),
-                tg_url=str(campaign.get("tg_url") or "-"),
+                tg_url=str(_tg_url or "-"),
+                mc_resolve_url=settings.WIZARD_MC_RESOLVE_URL,
+                mc_token=settings.WIZARD_MC_TOKEN,
                 mode=mode,
                 start_param=campaign.get("start_param"),
             )
@@ -348,13 +361,6 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         payload, error = await run_sb_call(lambda: sb_client.stats_top(hours=hours, limit=20), "analytics top failed")
         text = _format_top_text(payload) if error is None and isinstance(payload, dict) else f"Analytics Top\n\n⚠️ {error or 'failed to load analytics top'}"
         await panel.render(chat_id=chat_id, text=text, keyboard=analytics_keyboard(hours=hours, back_callback=back_callback))
-        return
-
-    if data == "camp:view:analytics_back":
-        session = await load_session(redis, chat_id)
-        session.pop("analytics_campaign", None)
-        await save_session(redis, chat_id, session)
-        await render_campaign_view(panel, redis, chat_id, settings)
         return
 
     if data == "ops:export":

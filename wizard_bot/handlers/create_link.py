@@ -24,11 +24,19 @@ async def _refresh_created_item(session: dict, sb_client, settings, *, fallback_
                 item["shortlink"] = (
                     f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
                 )
+                # Compute tg_url from start_param + bot username
+                start_param = item.get("start_param")
+                if start_param and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
+                    item["tg_url"] = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={start_param}"
                 return item
 
     item = fallback_item or (session.get("created_item") if isinstance(session.get("created_item"), dict) else None)
     if isinstance(item, dict):
         item["shortlink"] = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{item.get('slug', '-')}" if item.get("slug") else "-"
+        # Compute tg_url for fallback item too
+        sp = item.get("start_param")
+        if sp and getattr(settings, "WIZARD_SIS_BOT_USERNAME", "") and not item.get("tg_url"):
+            item["tg_url"] = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={sp}"
     return item if isinstance(item, dict) else None
 
 
@@ -144,7 +152,7 @@ async def handle_wizard_callback(data: str, chat_id: int, panel, redis, sb_clien
                 f"Preview: result={result.get('result')} url={result.get('url')} start_param={result.get('start_param') or 'NULL'}"
             )
     await save_session(redis, chat_id, session)
-    await render_step(panel, chat_id, session)
+    await render_step(panel, chat_id, session, settings)
     return True
 
 

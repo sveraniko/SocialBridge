@@ -7,6 +7,8 @@ def build_manychat_snippet(
     content_ref: str,
     url: str,
     tg_url: str,
+    mc_resolve_url: str,
+    mc_token: str,
     mode: str | None = None,
     start_param: str | None = None,
 ) -> str:
@@ -16,10 +18,10 @@ def build_manychat_snippet(
         f"sb_channel={channel}",
         f"sb_content_ref={content_ref}",
         "",
-        "External Request URL: https://trend-labels.com/v1/mc/resolve",
+        f"External Request URL: {mc_resolve_url}",
         "Headers:",
         "- Content-Type: application/json",
-        "- X-MC-Token: <YOUR_MC_TOKEN>",
+        f"- X-MC-Token: {mc_token}",
         "",
         "Body template:",
         '{"channel":"{{sb_channel}}","content_ref":"{{sb_content_ref}}","text":"{{last_text_input}}"}',
@@ -35,7 +37,7 @@ def build_manychat_snippet(
 
     if str(mode) == "1":
         code = start_param or "CODE"
-        lines.extend(["", f"Комментируй: BUY {code}", f"BUY {code}"])
+        lines.extend(["", f"Comment trigger: BUY {code}", f"BUY {code}"])
 
     return "\n".join(lines)
 

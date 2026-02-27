@@ -47,7 +47,14 @@ async def render_campaign_view(panel, redis, chat_id: int, settings, error_msg: 
     start_param = campaign.get("start_param")
     shortlink = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{slug}" if slug != "-" else "-"
     resolved_url = str(campaign.get("url") or shortlink)
-    tg_url = str(campaign.get("tg_url") or "-")
+    # tg_url: prefer preview result; fallback to constructing from start_param + bot username
+    _tg_url_raw = campaign.get("tg_url")
+    if _tg_url_raw:
+        tg_url = str(_tg_url_raw)
+    elif start_param and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
+        tg_url = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={start_param}"
+    else:
+        tg_url = "-"
     is_active = bool(campaign.get("is_active"))
     delete_confirm = bool(session.get("delete_confirm"))
     meta = campaign.get("meta") if isinstance(campaign.get("meta"), dict) else {}

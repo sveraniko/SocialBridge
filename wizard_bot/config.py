@@ -16,6 +16,9 @@ class WizardSettings(BaseSettings):
     WIZARD_CAMPAIGNS_PAGE_LIMIT: int = 50
     WIZARD_DEFAULT_CHANNEL: str = "ig"
     WIZARD_PUBLIC_BASE_URL: str = "http://localhost:8000"
+    WIZARD_SIS_BOT_USERNAME: str = ""
+    WIZARD_MC_RESOLVE_URL: str = "https://your-domain.com/v1/mc/resolve"
+    WIZARD_MC_TOKEN: str = "<YOUR_MC_TOKEN>"
 
     @field_validator("WIZARD_ADMIN_IDS", mode="before")
     @classmethod

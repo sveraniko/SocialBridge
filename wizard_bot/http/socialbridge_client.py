@@ -112,3 +112,18 @@ class SocialBridgeClient:
         response = await self._client.post("/v1/admin/resolve-preview", json=payload)
         response.raise_for_status()
         return response.json()
+
+    async def stats_overview(self, hours: int = 24) -> dict:
+        response = await self._client.get("/v1/admin/stats/overview", params={"hours": hours})
+        response.raise_for_status()
+        return response.json()
+
+    async def stats_top(self, hours: int = 24, limit: int = 20) -> dict:
+        response = await self._client.get("/v1/admin/stats/top", params={"hours": hours, "limit": limit})
+        response.raise_for_status()
+        return response.json()
+
+    async def stats_campaign(self, content_ref: str, hours: int = 24) -> dict:
+        response = await self._client.get("/v1/admin/stats/campaign", params={"content_ref": content_ref, "hours": hours})
+        response.raise_for_status()
+        return response.json()

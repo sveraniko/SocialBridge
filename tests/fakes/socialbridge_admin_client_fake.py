@@ -12,6 +12,9 @@ class FakeSocialBridgeAdminClient:
         self.export_calls: list[dict] = []
         self.import_calls: list[list[dict]] = []
         self.list_calls: list[dict] = []
+        self.stats_overview_calls: list[int] = []
+        self.stats_top_calls: list[dict] = []
+        self.stats_campaign_calls: list[dict] = []
 
     async def upsert_content_map(
         self,
@@ -118,3 +121,35 @@ class FakeSocialBridgeAdminClient:
         if is_active is not None:
             filtered = [item for item in filtered if item.get("is_active", True) is is_active]
         return filtered
+
+    async def stats_overview(self, hours: int = 24) -> dict:
+        self.stats_overview_calls.append(hours)
+        return {
+            "hours": hours,
+            "resolves_total": 0,
+            "resolves_by_result": {"hit": 0, "fallback_payload": 0, "fallback_catalog": 0},
+            "clicks_total": 0,
+            "ctr_bridge": 0.0,
+            "redirect_miss_total": 0,
+        }
+
+    async def stats_top(self, hours: int = 24, limit: int = 20) -> dict:
+        self.stats_top_calls.append({"hours": hours, "limit": limit})
+        return {
+            "hours": hours,
+            "limit": limit,
+            "top_campaigns_by_clicks": [],
+            "top_campaigns_by_resolves": [],
+        }
+
+    async def stats_campaign(self, content_ref: str, hours: int = 24) -> dict:
+        self.stats_campaign_calls.append({"content_ref": content_ref, "hours": hours})
+        return {
+            "content_ref": content_ref,
+            "hours": hours,
+            "resolves_total": 0,
+            "resolves_by_result": {"hit": 0, "fallback_payload": 0, "fallback_catalog": 0},
+            "clicks_total": 0,
+            "ctr_bridge": 0.0,
+            "redirect_miss_total": 0,
+        }

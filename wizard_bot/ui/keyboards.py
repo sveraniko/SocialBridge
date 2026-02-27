@@ -52,10 +52,12 @@ def campaign_view_keyboard(is_active: bool, delete_confirm: bool = False) -> dic
     toggle_text = "Disable" if is_active else "Enable"
     toggle_action = "camp:disable" if is_active else "camp:enable"
     delete_btn = _button("❌ Confirm Delete", "camp:delete:confirm") if delete_confirm else _button("Delete", "camp:delete")
+    snippet_row = [_button("ManyChat Snippet", "camp:manychat")]
     return {
         "inline_keyboard": [
             [_button(toggle_text, toggle_action), delete_btn],
             [_button("Resolve Preview", "camp:preview")],
+            snippet_row,
             [_button("➕ New", "nav:CREATE_LINK"), _button("Back to list", "camp:back_to_list")],
             [_button("Main Menu", "nav:MAIN"), _button("Home", "act:clean")],
         ]

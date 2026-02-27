@@ -44,20 +44,26 @@ async def render_campaign_view(panel, redis, chat_id: int, settings, error_msg: 
 
     slug = campaign.get("slug") or "-"
     content_ref = campaign.get("content_ref") or "-"
+    start_param = campaign.get("start_param")
     shortlink = f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{slug}" if slug != "-" else "-"
+    resolved_url = str(campaign.get("url") or shortlink)
+    tg_url = str(campaign.get("tg_url") or "-")
     is_active = bool(campaign.get("is_active"))
     delete_confirm = bool(session.get("delete_confirm"))
     meta = campaign.get("meta") if isinstance(campaign.get("meta"), dict) else {}
     kind = meta.get("kind") or ""
-    param_label = "product code" if kind == "product" else "look code" if kind == "look" else "start_param"
+    param_label = "product_code" if kind == "product" else "start_param"
     status_emoji = "✅" if is_active else "❌"
     lines = [
         f"Campaign View {status_emoji}",
         "",
         f"• slug: {slug}",
-        f"• {param_label}: {campaign.get('start_param') or 'Catalog'}",
+        f"• {param_label}: {start_param or 'Catalog'}",
         f"• channel: {campaign.get('channel') or '-'}",
-        f"• shortlink: {shortlink}",
+        f"• content_ref: {content_ref}",
+        f"• is_active: {is_active}",
+        f"• url: {resolved_url}",
+        f"• tg_url: {tg_url}",
     ]
     text = "\n".join(lines)
     if error_msg:

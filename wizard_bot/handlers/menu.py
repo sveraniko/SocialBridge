@@ -10,6 +10,7 @@ from wizard_bot.handlers.start import show_main
 from wizard_bot.nav import routes
 from wizard_bot.nav.stack import pop_route, push_route
 from wizard_bot.ui.keyboards import search_prompt_keyboard
+from wizard_bot.ui.manychat import build_manychat_snippet
 from wizard_bot.wizard.state import load_session, save_session
 
 
@@ -135,13 +136,24 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         if campaign is None:
             await panel.render(chat_id=chat_id, text="Campaign not found on this page.", keyboard={"inline_keyboard": [[{"text": "Back", "callback_data": "act:back"}]]})
             return
+        preview, _ = await run_sb_call(
+            lambda: sb_client.resolve_preview(
+                channel=str(campaign.get("channel") or settings.WIZARD_DEFAULT_CHANNEL),
+                content_ref=str(campaign.get("content_ref") or ""),
+                text="preview",
+            ),
+            "Resolve preview failed",
+        )
+        if isinstance(preview, dict):
+            campaign["url"] = preview.get("url")
+            campaign["tg_url"] = preview.get("tg_url")
         session["campaign_view"] = campaign
         await save_session(redis, chat_id, session)
         await push_route(redis, chat_id, routes.CAMPAIGN_VIEW, routes.CAMPAIGNS_LIST)
         await render_campaign_view(panel, redis, chat_id, settings)
         return
 
-    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete", "camp:delete:confirm"}:
+    if data in {"camp:disable", "camp:enable", "camp:preview", "camp:delete", "camp:delete:confirm", "camp:manychat"}:
         session = await load_session(redis, chat_id)
         campaign = session.get("campaign_view") if isinstance(session.get("campaign_view"), dict) else None
         if not campaign:
@@ -150,6 +162,25 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         channel = str(campaign.get("channel") or settings.WIZARD_DEFAULT_CHANNEL)
         content_ref = str(campaign.get("content_ref") or "")
         error_msg = None
+
+        if data == "camp:manychat":
+            mode = ""
+            if isinstance(campaign.get("meta"), dict):
+                mode = str(campaign.get("meta", {}).get("mode") or "")
+            snippet = build_manychat_snippet(
+                channel=channel or settings.WIZARD_DEFAULT_CHANNEL,
+                content_ref=content_ref,
+                url=str(campaign.get("url") or f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{campaign.get('slug') or 'catalog'}"),
+                tg_url=str(campaign.get("tg_url") or "-"),
+                mode=mode,
+                start_param=campaign.get("start_param"),
+            )
+            await panel.render(
+                chat_id=chat_id,
+                text=snippet,
+                keyboard={"inline_keyboard": [[{"text": "Back", "callback_data": "camp:snippet:back"}, {"text": "Home", "callback_data": "act:clean"}]]},
+            )
+            return
 
         if data == "camp:disable":
             session.pop("delete_confirm", None)  # reset delete confirm on any other action
@@ -211,6 +242,8 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
                 "Resolve preview failed",
             )
             if error is None and isinstance(result, dict):
+                campaign["url"] = result.get("url")
+                campaign["tg_url"] = result.get("tg_url")
                 error_msg = f"Preview: {result.get('result')} | start_param={result.get('start_param') or 'NULL'}"
             else:
                 error_msg = error
@@ -218,6 +251,10 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
         session["campaign_view"] = campaign
         await save_session(redis, chat_id, session)
         await render_campaign_view(panel, redis, chat_id, settings, error_msg=error_msg)
+        return
+
+    if data == "camp:snippet:back":
+        await render_campaign_view(panel, redis, chat_id, settings)
         return
 
     if data == "ops:export":

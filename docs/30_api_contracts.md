@@ -133,6 +133,7 @@ ManyChat и другие системы любят ретраи. Мы должн
 {
   "reply_text": "Готово. Вот ссылка 👇",
   "url": "https://go.DOMAIN/t/dress001",
+  "tg_url": "https://t.me/Sis_Social_bot?start=DRESS001",
   "start_param": "DRESS001",
   "slug": "dress001",
   "tag": "ig|campaign:dress001",
@@ -146,6 +147,10 @@ ManyChat и другие системы любят ретраи. Мы должн
 - `fallback_catalog` — отправили в каталог
 
 Операционный guardrail: при превышении дневного лимита на динамические маппинги (`DYNAMIC_MAPPING_MAX_PER_DAY`) сервис деградирует в `fallback_catalog` для новых payload-only запросов.
+
+Рекомендованное использование ссылок:
+- DM/личка: используйте `tg_url` (лучший UX, прямой deeplink в Telegram).
+- Публичные посты/сторис: используйте `url` (брендовый shortlink + трекинг клика в SocialBridge).
 
 #### 5.1.5 Ошибки
 - `400 Bad Request`
@@ -300,8 +305,31 @@ ManyChat и другие системы любят ретраи. Мы должн
 
 ---
 
-## 11) Endpoint: Export content_map
-### 11.1 GET /v1/admin/content-map/export
+## 11) Endpoint: Resolve preview (admin, non-persisting)
+### 11.1 POST /v1/admin/resolve-preview
+**Назначение:** предпросмотр результата resolve без записи в `inbound_events`.
+
+**Response 200:**
+```json
+{
+  "reply_text": "Готово. Вот ссылка 👇",
+  "url": "https://go.DOMAIN/t/dress001",
+  "tg_url": "https://t.me/Sis_Social_bot?start=DRESS001",
+  "start_param": "DRESS001",
+  "slug": "dress001",
+  "tag": "ig|campaign:dress001",
+  "result": "hit"
+}
+```
+
+`tg_url` вычисляется по тому же правилу, что и в `/v1/mc/resolve`:
+- `https://t.me/{SIS_BOT_USERNAME}`, если `start_param` пустой/`null`;
+- `https://t.me/{SIS_BOT_USERNAME}?start={start_param}` в остальных случаях.
+
+---
+
+## 12) Endpoint: Export content_map
+### 12.1 GET /v1/admin/content-map/export
 **Query params:**
 - `channel` (optional)
 - `is_active` (optional)
@@ -310,8 +338,8 @@ ManyChat и другие системы любят ретраи. Мы должн
 
 ---
 
-## 12) Endpoint: Disable content_map (мягкое выключение)
-### 12.1 POST /v1/admin/content-map/disable
+## 13) Endpoint: Disable content_map (мягкое выключение)
+### 13.1 POST /v1/admin/content-map/disable
 **Request:**
 ```json
 {
@@ -327,8 +355,8 @@ ManyChat и другие системы любят ретраи. Мы должн
 
 ---
 
-## 13) Нормализация и fallback: формальная логика resolve
-### 13.1 Порядок
+## 14) Нормализация и fallback: формальная логика resolve
+### 14.1 Порядок
 1) `content_ref` → lookup content_map
 2) если miss:
    - попытка извлечь start_param из `text`:
@@ -337,7 +365,7 @@ ManyChat и другие системы любят ретраи. Мы должн
      - “похоже на PRODUCT_CODE” (валидатором)
 3) если снова miss → каталог
 
-### 13.2 Валидация start_param
+### 14.2 Валидация start_param
 **Разрешённые символы:** `A-Za-z0-9_-`  
 **Макс длина:** 64 (лучше ≤ 50)
 
@@ -345,35 +373,35 @@ ManyChat и другие системы любят ретраи. Мы должн
 
 ---
 
-## 14) Совместимость и расширение
-### 14.1 Новые поля в request/response
+## 15) Совместимость и расширение
+### 15.1 Новые поля в request/response
 Разрешены: клиент должен игнорировать неизвестные поля.
 
-### 14.2 Новые каналы
+### 15.2 Новые каналы
 Добавление канала = новый `channel` + новые `content_ref` типы, ядро не меняется.
 
 ---
 
-## 15) Примеры (готовые для копипаста)
+## 16) Примеры (готовые для копипаста)
 
-### 15.1 resolve — hit
+### 16.1 resolve — hit
 ```bash
 curl -sS -X POST http://localhost:8000/v1/mc/resolve   -H 'Content-Type: application/json'   -H 'X-MC-Token: dev'   -d '{"channel":"ig","content_ref":"campaign:dress001","text":"хочу","mc":{"contact_id":"1","flow_id":"F1","trigger":"test"}}'
 ```
 
-### 15.2 resolve — fallback catalog
+### 16.2 resolve — fallback catalog
 ```bash
 curl -sS -X POST http://localhost:8000/v1/mc/resolve   -H 'Content-Type: application/json'   -d '{"channel":"ig"}'
 ```
 
-### 15.3 redirect
+### 16.3 redirect
 ```bash
 curl -I http://localhost:8000/t/dress001
 ```
 
 ---
 
-## 16) Примечания для реализации (чтобы не разъехалось)
+## 17) Примечания для реализации (чтобы не разъехалось)
 - canonical_json для hash: сортировка ключей, без пробелов, UTF-8
 - error format всегда один
 - redirect miss логировать как отдельный счетчик/метрика

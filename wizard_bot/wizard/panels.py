@@ -5,6 +5,7 @@ from wizard_bot.ui.keyboards import (
     slug_choice_keyboard,
     step_back_cancel_keyboard,
 )
+from wizard_bot.ui.manychat import build_manychat_snippet
 from wizard_bot.wizard.state import ensure_campaign_key
 
 MODE_TEXT = {
@@ -85,13 +86,14 @@ async def render_step(panel, chat_id: int, data: dict) -> None:
             lines.extend([f"Комментируй: BUY {code}", f"BUY {code}"])
         else:
             lines.extend(
-                [
-                    "ManyChat snippet:",
-                    "sb_channel=ig",
-                    f"sb_content_ref=campaign:{key}",
-                    'External Request body: {"channel":"{{sb_channel}}","content_ref":"{{sb_content_ref}}","text":"{{last_text_input}}"}',
-                    "Map response: sb_last_url <- url, sb_reply_text <- reply_text",
-                ]
+                build_manychat_snippet(
+                    channel="ig",
+                    content_ref=f"campaign:{key}",
+                    url=shortlink,
+                    tg_url=str(item.get("tg_url") or "-"),
+                    mode=mode,
+                    start_param=data.get("start_param"),
+                ).splitlines()
             )
         status_line = data.get("result_status")
         if status_line:

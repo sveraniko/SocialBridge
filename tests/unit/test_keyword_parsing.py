@@ -13,13 +13,14 @@ def test_parse_keyword_product_payload():
 
 
 def test_parse_keyword_look_payload_prefixes_when_needed():
+    # SIS uses LOOK: prefix (colon) not LOOK_ (underscore)
     start_param, result = parse_keyword_payload(
-        "LOOK SPRING26",
+        "LOOK Look001",
         keyword_product="BUY",
         keyword_look="LOOK",
         keyword_catalog="CAT",
     )
-    assert start_param == "LOOK_SPRING26"
+    assert start_param == "LOOK:Look001"
     assert result == "fallback_payload"
 
 

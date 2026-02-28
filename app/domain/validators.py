@@ -1,7 +1,8 @@
 import re
 
 SLUG_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
-START_PARAM_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+# Telegram allows A-Za-z0-9_- in start param; we also allow : for SIS LOOK: prefix
+START_PARAM_RE = re.compile(r"^[A-Za-z0-9_:\-]{1,64}$")
 PRODUCT_CODE_RE = re.compile(r"^(?=.*\d)[A-Za-z0-9_-]{1,64}$")
 
 
@@ -16,8 +17,9 @@ def is_valid_start_param(value: str) -> bool:
 def parse_start_param_from_text(text: str | None) -> str | None:
     if not text:
         return None
-    for token in re.findall(r"[A-Za-z0-9_-]+", text):
-        if token.startswith("LOOK_") and is_valid_start_param(token):
+    # Include colon for SIS LOOK: format
+    for token in re.findall(r"[A-Za-z0-9_:\-]+", text):
+        if token.startswith("LOOK:") and is_valid_start_param(token):
             return token
         if token.startswith("prod_") and is_valid_start_param(token):
             return token
@@ -63,9 +65,10 @@ def parse_keyword_payload(
         return code, "fallback_payload"
 
     if keyword == kw_look:
-        if code.startswith("LOOK_"):
+        # SIS uses LOOK: prefix (colon), not LOOK_ (underscore)
+        if code.startswith("LOOK:"):
             return code, "fallback_payload"
-        look_code = f"LOOK_{code}"
+        look_code = f"LOOK:{code}"
         if is_valid_start_param(look_code):
             return look_code, "fallback_payload"
 

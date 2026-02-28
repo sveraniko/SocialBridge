@@ -36,7 +36,7 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         if data.get("kind") == "product":
             prompt = "Enter product code/start_param (example: BOIZMRJS)."
         elif data.get("kind") == "look":
-            prompt = "Enter look code/start_param (example: LOOK_SPRING26 or SPRING26)."
+            prompt = "Enter look code/start_param (example: LOOK:Look001 or Look001)."
         else:
             prompt = "Enter start param."
         text = f"Create campaign/link\n\nStep 3/5: {prompt}\n\nSend one text message."

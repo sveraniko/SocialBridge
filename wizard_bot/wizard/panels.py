@@ -5,7 +5,7 @@ from wizard_bot.ui.keyboards import (
     slug_choice_keyboard,
     step_back_cancel_keyboard,
 )
-from wizard_bot.ui.manychat import build_manychat_snippet
+from wizard_bot.ui.manychat import build_keyword_config_section, build_manychat_snippet
 from wizard_bot.wizard.state import ensure_campaign_key
 
 MODE_TEXT = {
@@ -36,7 +36,7 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         if data.get("kind") == "product":
             prompt = "Enter product code/start_param (example: BOIZMRJS)."
         elif data.get("kind") == "look":
-            prompt = "Enter look code/start_param (example: LOOK:Look001 or Look001)."
+            prompt = "Enter look safe code from SIS (example: LK7X9M2P or LOOK_LK7X9M2P)."
         else:
             prompt = "Enter start param."
         text = f"Create campaign/link\n\nStep 3/5: {prompt}\n\nSend one text message."
@@ -79,23 +79,30 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         item = data.get("created_item") or {}
         shortlink = item.get("shortlink") or "-"
         key = ensure_campaign_key(data)
+        
+        # Get keyword settings
+        keyword_product = getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY") if settings else "BUY"
+        keyword_look = getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK") if settings else "LOOK"
+        keyword_catalog = getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT") if settings else "CAT"
+        
         lines = [
-            "Campaign created ✅",
+            "Campaign created \u2705",
             f"Shortlink: {shortlink}",
             "",
         ]
         mode = str(data.get("mode"))
         if mode == "0":
             lines.append(f"Link for bio/story/pinned comment: {shortlink}")
+            # Add keyword config for Mode 0
+            lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog))
         elif mode == "1":
-            keyword_product = getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY") if settings else "BUY"
-            keyword_look = getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK") if settings else "LOOK"
-            keyword_catalog = getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT") if settings else "CAT"
             from wizard_bot.ui.manychat import mode1_trigger_text
             trigger = mode1_trigger_text(data.get("kind"), data.get("start_param"), keyword_product, keyword_look, keyword_catalog)
-            lines.extend([f"Комментируй: {trigger}", trigger])
+            lines.extend([f"\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0438\u0440\u0443\u0439: {trigger}", trigger])
+            # Add keyword config for Mode 1
+            lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog))
         else:
-            lines.append("Post-specific campaign mapping (comment→DM).")
+            lines.append("Post-specific campaign mapping (comment\u2192DM).")
             # Compute tg_url with fallback
             _tg_url = item.get("tg_url")
             if not _tg_url and data.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
@@ -111,9 +118,9 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
                     mode=mode,
                     kind=data.get("kind"),
                     start_param=data.get("start_param"),
-                    keyword_product=getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY"),
-                    keyword_look=getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK"),
-                    keyword_catalog=getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT"),
+                    keyword_product=keyword_product,
+                    keyword_look=keyword_look,
+                    keyword_catalog=keyword_catalog,
                 ).splitlines()
             )
         status_line = data.get("result_status")

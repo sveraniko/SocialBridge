@@ -12,6 +12,14 @@ def validate_start_param(kind: str, value: str | None) -> tuple[bool, str | None
         return False, None, "Value is required."
     if not START_PARAM_RE.match(text):
         return False, None, "Use only letters, digits, _ or -, max 64 chars."
+    
+    # Auto-prepend LOOK_ prefix for look campaigns
+    if kind == "look":
+        # Strip existing prefix if user entered it manually
+        if text.startswith("LOOK_"):
+            text = text[5:]  # Remove LOOK_ to re-add it consistently
+        text = f"LOOK_{text}"
+    
     return True, text, None
 
 

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+# Default keyword values for comparison
+DEFAULT_KEYWORD_PRODUCT = "BUY"
+DEFAULT_KEYWORD_LOOK = "LOOK"
+DEFAULT_KEYWORD_CATALOG = "CAT"
+
 
 def mode1_trigger_text(kind: str | None, start_param: str | None, keyword_product: str, keyword_look: str, keyword_catalog: str) -> str:
     kind_value = str(kind or "").lower()
@@ -8,6 +13,32 @@ def mode1_trigger_text(kind: str | None, start_param: str | None, keyword_produc
     code = start_param or "CODE"
     keyword = keyword_look if kind_value == "look" else keyword_product
     return f"{keyword} {code}"
+
+
+def _format_keyword_line(name: str, value: str, default: str) -> str:
+    """Format keyword line showing value and whether it's overridden."""
+    if value == default:
+        return f"  {name}: {value} (default)"
+    return f"  {name}: {value} (overridden, default: {default})"
+
+
+def build_keyword_config_section(
+    keyword_product: str,
+    keyword_look: str,
+    keyword_catalog: str,
+) -> str:
+    """Build keyword configuration info section for ManyChat setup."""
+    lines = [
+        "",
+        "━━━ Keyword Configuration ━━━",
+        _format_keyword_line("KEYWORD_PRODUCT", keyword_product, DEFAULT_KEYWORD_PRODUCT),
+        _format_keyword_line("KEYWORD_LOOK", keyword_look, DEFAULT_KEYWORD_LOOK),
+        _format_keyword_line("KEYWORD_CATALOG", keyword_catalog, DEFAULT_KEYWORD_CATALOG),
+        "",
+        "⚠️ Note: Deep link prefix 'LOOK_' is hardcoded in SIS.",
+        "   Changing KEYWORD_LOOK affects user input only.",
+    ]
+    return "\n".join(lines)
 
 
 def build_manychat_snippet(
@@ -51,5 +82,8 @@ def build_manychat_snippet(
     if str(mode) == "1":
         trigger = mode1_trigger_text(kind, start_param, keyword_product, keyword_look, keyword_catalog)
         lines.extend(["", f"Comment trigger: {trigger}", trigger])
+
+    # Add keyword configuration section for all modes
+    lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog))
 
     return "\n".join(lines)

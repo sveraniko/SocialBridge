@@ -13,14 +13,14 @@ def test_parse_keyword_product_payload():
 
 
 def test_parse_keyword_look_payload_prefixes_when_needed():
-    # SIS uses LOOK: prefix (colon) not LOOK_ (underscore)
+    # SIS uses safe auto-generated codes: LOOK_LK7X9M2P format
     start_param, result = parse_keyword_payload(
-        "LOOK Look001",
+        "LOOK LK7X9M2P",
         keyword_product="BUY",
         keyword_look="LOOK",
         keyword_catalog="CAT",
     )
-    assert start_param == "LOOK:Look001"
+    assert start_param == "LOOK_LK7X9M2P"
     assert result == "fallback_payload"
 
 

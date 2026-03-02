@@ -11,6 +11,12 @@ from wizard_bot.nav import routes
 from wizard_bot.nav.stack import pop_route, push_route
 from wizard_bot.ui.keyboards import analytics_keyboard, search_prompt_keyboard
 from wizard_bot.ui.manychat import build_manychat_snippet
+from wizard_bot.ui.manychat_sections import (
+    ManyChatContext,
+    render_section,
+    get_section_keyboard,
+    is_token_placeholder,
+)
 from wizard_bot.wizard.state import load_session, save_session
 
 
@@ -230,7 +236,10 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
             _tg_url = campaign.get("tg_url")
             if not _tg_url and campaign.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
                 _tg_url = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={campaign.get('start_param')}"
-            snippet = build_manychat_snippet(
+            
+            # Build context for compact UI
+            ctx = ManyChatContext(
+                slug=str(campaign.get("slug") or "campaign"),
                 channel=channel or settings.WIZARD_DEFAULT_CHANNEL,
                 content_ref=content_ref,
                 url=str(campaign.get("url") or f"{settings.WIZARD_PUBLIC_BASE_URL}/t/{campaign.get('slug') or 'catalog'}"),
@@ -238,17 +247,35 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
                 mc_resolve_url=settings.WIZARD_MC_RESOLVE_URL,
                 mc_token=settings.WIZARD_MC_TOKEN,
                 mode=mode,
-                kind=kind,
-                start_param=campaign.get("start_param"),
+                kind=kind or "product",
+                start_param=str(campaign.get("start_param") or ""),
                 keyword_product=getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY"),
                 keyword_look=getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK"),
                 keyword_catalog=getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT"),
             )
-            await panel.render(
-                chat_id=chat_id,
-                text=snippet,
-                keyboard={"inline_keyboard": [[{"text": "Back", "callback_data": "camp:snippet:back"}, {"text": "Home", "callback_data": "act:clean"}]]},
-            )
+            
+            # Store context in session for section navigation
+            session["manychat_ctx"] = {
+                "slug": ctx.slug,
+                "channel": ctx.channel,
+                "content_ref": ctx.content_ref,
+                "url": ctx.url,
+                "tg_url": ctx.tg_url,
+                "mc_resolve_url": ctx.mc_resolve_url,
+                "mc_token": ctx.mc_token,
+                "mode": ctx.mode,
+                "kind": ctx.kind,
+                "start_param": ctx.start_param,
+                "keyword_product": ctx.keyword_product,
+                "keyword_look": ctx.keyword_look,
+                "keyword_catalog": ctx.keyword_catalog,
+            }
+            await save_session(redis, chat_id, session)
+            
+            # Render compact summary
+            text = render_section(ctx, "pack")
+            keyboard = get_section_keyboard(ctx, "pack", ctx.slug)
+            await panel.render(chat_id=chat_id, text=text, keyboard=keyboard)
             return
 
         if data == "camp:analytics":
@@ -340,6 +367,46 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
     if data == "camp:snippet:back":
         await render_campaign_view(panel, redis, chat_id, settings)
         return
+
+    # ManyChat section navigation: mc:<section>:<slug>
+    if data.startswith("mc:"):
+        parts = data.split(":")
+        if len(parts) >= 3:
+            section = parts[1]
+            # slug may contain colons, so rejoin the rest
+            slug = ":".join(parts[2:])
+            
+            session = await load_session(redis, chat_id)
+            ctx_data = session.get("manychat_ctx")
+            if not ctx_data or not isinstance(ctx_data, dict):
+                await panel.render(
+                    chat_id=chat_id,
+                    text="Session expired. Go back to campaign.",
+                    keyboard={"inline_keyboard": [[{"text": "Back", "callback_data": "camp:snippet:back"}]]},
+                )
+                return
+            
+            # Rebuild context from session
+            ctx = ManyChatContext(
+                slug=ctx_data.get("slug", slug),
+                channel=ctx_data.get("channel", "ig"),
+                content_ref=ctx_data.get("content_ref", ""),
+                url=ctx_data.get("url", ""),
+                tg_url=ctx_data.get("tg_url", ""),
+                mc_resolve_url=ctx_data.get("mc_resolve_url", ""),
+                mc_token=ctx_data.get("mc_token", ""),
+                mode=ctx_data.get("mode", ""),
+                kind=ctx_data.get("kind", "product"),
+                start_param=ctx_data.get("start_param", ""),
+                keyword_product=ctx_data.get("keyword_product", "BUY"),
+                keyword_look=ctx_data.get("keyword_look", "LOOK"),
+                keyword_catalog=ctx_data.get("keyword_catalog", "CAT"),
+            )
+            
+            text = render_section(ctx, section)  # type: ignore
+            keyboard = get_section_keyboard(ctx, section, ctx.slug)  # type: ignore
+            await panel.render(chat_id=chat_id, text=text, keyboard=keyboard)
+            return
 
     if data.startswith("analytics:hours:"):
         hours = int(data.split(":")[-1])

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import httpx
+
 from wizard_bot.config import get_settings
 from wizard_bot.handlers.campaigns import render_campaign_view, render_campaigns, search_campaign
 from wizard_bot.handlers.create_link import handle_wizard_input
@@ -181,10 +183,21 @@ async def runner() -> None:
     messenger = Messenger(redis, telegram)
 
     offset = None
+    _retry_delay = 1.0
     logger.info("wizard bot started")
     try:
         while True:
-            updates = await telegram.get_updates(offset=offset, timeout=settings.WIZARD_POLL_TIMEOUT_SECONDS)
+            try:
+                updates = await telegram.get_updates(offset=offset, timeout=settings.WIZARD_POLL_TIMEOUT_SECONDS)
+                _retry_delay = 1.0  # reset on success
+            except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError) as exc:
+                logger.warning("Telegram poll error (%s), retrying in %.0fs", exc, _retry_delay)
+                await asyncio.sleep(_retry_delay)
+                _retry_delay = min(_retry_delay * 2, 30.0)
+                continue
+            except httpx.TimeoutException:
+                # long-poll timeout is normal — just retry immediately
+                continue
             for update in updates:
                 offset = update["update_id"] + 1
                 try:

@@ -250,3 +250,92 @@ Common setup:
 Expected resolve behavior:
 - BUY/LOOK → `result=fallback_payload`
 - CAT → `result=fallback_catalog`
+
+---
+
+## 7) Mode-Aware ManyChat Templates (v2)
+
+The Campaign Wizard now generates **mode-aware** templates. Use the correct template based on your campaign mode:
+
+### 7.1 Template A — Post/Story/Comment (Mode 2)
+
+**Use for:**
+- Post comments / Reel comments
+- Story replies
+- Instagram Comment Growth Tool
+
+**Key difference:** No text input required. Body uses empty text:
+
+```json
+{
+  "channel": "{{sb_channel}}",
+  "content_ref": "{{sb_content_ref}}",
+  "text": ""
+}
+```
+
+**Why:** Post/story triggers don't provide user text input. The `content_ref` is pre-configured in the flow.
+
+### 7.2 Template B — Keyword DM (Mode 1)
+
+**Use for:**
+- Direct Message keyword triggers
+- User types `BUY DRESS001` or `LOOK SPRING26`
+
+**Key difference:** Requires incoming message text:
+
+```json
+{
+  "channel": "{{sb_channel}}",
+  "content_ref": "",
+  "text": "INCOMING_TEXT"
+}
+```
+
+**Important:** Replace `INCOMING_TEXT` with ManyChat's variable for incoming message text (select from dropdown in ManyChat UI).
+
+**Why:** The `text` field contains the keyword + code, which SocialBridge parses to resolve the correct campaign.
+
+### 7.3 URL Recommendations
+
+| Context | Recommended URL | Reason |
+|---------|-----------------|--------|
+| DM button | `sb_tg_url` | Direct Telegram link, best UX |
+| Public post | `sb_last_url` | Branded shortlink, trackable |
+| Bio link | `sb_last_url` | Branded, rememberable |
+
+### 7.4 Response Mapping Styles
+
+**Plain style (most ManyChat UIs):**
+```
+sb_last_url   ←  url
+sb_tg_url     ←  tg_url
+sb_reply_text ←  reply_text
+```
+
+**JSONPath style (if required):**
+```
+sb_last_url   ←  $.url
+sb_tg_url     ←  $.tg_url
+sb_reply_text ←  $.reply_text
+```
+
+### 7.5 Mode 0 — Direct Shortlink
+
+For campaigns with Mode 0, ManyChat is optional. Use the shortlink directly in:
+- Instagram bio
+- Story link sticker
+- Pinned comment
+
+---
+
+## 8) Troubleshooting
+
+### Token not configured
+If you see `⚠️ WARNING: WIZARD_MC_TOKEN not configured!` in the snippet:
+1. Set `MC_TOKEN` in your `.env` file
+2. Set `WIZARD_MC_TOKEN` in wizard bot `.env`
+3. Restart services
+
+### User must press Start
+When sending DM with `sb_tg_url`, if the user has never started the Telegram bot, they must press "Start" first. This is a Telegram limitation.

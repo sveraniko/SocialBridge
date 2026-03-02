@@ -22,6 +22,11 @@ class WizardSettings(BaseSettings):
     WIZARD_KEYWORD_PRODUCT: str = "BUY"
     WIZARD_KEYWORD_LOOK: str = "LOOK"
     WIZARD_KEYWORD_CATALOG: str = "CAT"
+    WIZARD_KEYWORDS_PRODUCT: str = "BUY"
+    WIZARD_KEYWORDS_LOOK: str = "LOOK"
+    WIZARD_KEYWORDS_CATALOG: str = "CAT"
+    WIZARD_LOOK_PREFIX: str = "LOOK_"
+    WIZARD_RESOLVE_REQUIRE_KEYWORD: bool = False
     WIZARD_KEYWORD_CASE_SENSITIVE: bool = False
 
     @field_validator("WIZARD_ADMIN_IDS", mode="before")

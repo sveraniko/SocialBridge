@@ -94,13 +94,29 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
         if mode == "0":
             lines.append(f"Link for bio/story/pinned comment: {shortlink}")
             # Add keyword config for Mode 0
-            lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog))
+            lines.append(
+                build_keyword_config_section(
+                    keyword_product,
+                    keyword_look,
+                    keyword_catalog,
+                    getattr(settings, "WIZARD_LOOK_PREFIX", "LOOK_"),
+                    getattr(settings, "WIZARD_RESOLVE_REQUIRE_KEYWORD", False),
+                )
+            )
         elif mode == "1":
             from wizard_bot.ui.manychat import mode1_trigger_text
             trigger = mode1_trigger_text(data.get("kind"), data.get("start_param"), keyword_product, keyword_look, keyword_catalog)
             lines.extend([f"\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0438\u0440\u0443\u0439: {trigger}", trigger])
             # Add keyword config for Mode 1
-            lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog))
+            lines.append(
+                build_keyword_config_section(
+                    keyword_product,
+                    keyword_look,
+                    keyword_catalog,
+                    getattr(settings, "WIZARD_LOOK_PREFIX", "LOOK_"),
+                    getattr(settings, "WIZARD_RESOLVE_REQUIRE_KEYWORD", False),
+                )
+            )
         else:
             lines.append("Post-specific campaign mapping (comment\u2192DM).")
             # Compute tg_url with fallback
@@ -121,6 +137,8 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
                     keyword_product=keyword_product,
                     keyword_look=keyword_look,
                     keyword_catalog=keyword_catalog,
+                    look_prefix=getattr(settings, "WIZARD_LOOK_PREFIX", "LOOK_"),
+                    resolve_require_keyword=getattr(settings, "WIZARD_RESOLVE_REQUIRE_KEYWORD", False),
                 ).splitlines()
             )
         status_line = data.get("result_status")

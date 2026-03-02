@@ -22,6 +22,10 @@ class ContentMapRepository:
     async def find_active_by_slug(self, slug: str) -> ContentMap | None:
         q = select(ContentMap).where(ContentMap.slug == slug, ContentMap.is_active.is_(True))
         return (await self.session.execute(q)).scalar_one_or_none()
+    async def exists_active_start_param(self, start_param: str) -> bool:
+        q = select(ContentMap.id).where(ContentMap.start_param == start_param, ContentMap.is_active.is_(True)).limit(1)
+        return (await self.session.execute(q)).scalar_one_or_none() is not None
+
 
     async def list_items(self, channel: str | None, is_active: bool | None, limit: int, offset: int):
         base_filter = []

@@ -252,6 +252,8 @@ async def handle_callback(data: str, chat_id: int, panel, redis, telegram, messe
                 keyword_product=getattr(settings, "WIZARD_KEYWORD_PRODUCT", "BUY"),
                 keyword_look=getattr(settings, "WIZARD_KEYWORD_LOOK", "LOOK"),
                 keyword_catalog=getattr(settings, "WIZARD_KEYWORD_CATALOG", "CAT"),
+                look_prefix=getattr(settings, "WIZARD_LOOK_PREFIX", "LOOK_"),
+                resolve_require_keyword=getattr(settings, "WIZARD_RESOLVE_REQUIRE_KEYWORD", False),
             )
             
             # Store context in session for section navigation

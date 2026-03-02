@@ -9,6 +9,13 @@ DEFAULT_KEYWORD_CATALOG = "CAT"
 TOKEN_PLACEHOLDERS = ("change-me", "your_mc_token", "<set", "placeholder", "<your")
 
 
+def build_tg_link_for_catalog(tg_url: str) -> str:
+    """Return bot root deeplink for catalog button from any tg deeplink."""
+    if "?start=" in tg_url:
+        return tg_url.split("?start=", 1)[0]
+    return tg_url
+
+
 def mode1_trigger_text(
     kind: str | None,
     start_param: str | None,
@@ -42,6 +49,8 @@ def build_keyword_config_section(
     keyword_product: str,
     keyword_look: str,
     keyword_catalog: str,
+    look_prefix: str,
+    resolve_require_keyword: bool,
 ) -> str:
     """Build keyword configuration info section for ManyChat setup."""
     lines = [
@@ -51,8 +60,9 @@ def build_keyword_config_section(
         _format_keyword_line("KEYWORD_LOOK", keyword_look, DEFAULT_KEYWORD_LOOK),
         _format_keyword_line("KEYWORD_CATALOG", keyword_catalog, DEFAULT_KEYWORD_CATALOG),
         "",
-        "⚠️ Note: Deep link prefix 'LOOK_' is hardcoded in SIS.",
-        "   Changing KEYWORD_LOOK affects user input only.",
+        f"⚠️ Note: LOOK prefix payload in SIS is '{look_prefix}'.",
+        "   Changing LOOK keyword affects user input only.",
+        f"   Resolve strict mode (require keyword): {resolve_require_keyword}",
     ]
     return "\n".join(lines)
 
@@ -174,7 +184,6 @@ def _build_template_b_mode1(
 ) -> str:
     """Template B: Keyword DM triggers (Mode 1) - requires INCOMING_TEXT."""
     body = '{"channel":"{{sb_channel}}","content_ref":"","text":"INCOMING_TEXT"}'
-    trigger = mode1_trigger_text(kind, start_param, keyword_product, keyword_look, keyword_catalog)
     kind_value = str(kind or "").lower()
     
     lines = [
@@ -218,6 +227,40 @@ def _build_template_b_mode1(
     return "\n".join(lines)
 
 
+
+
+def _build_template_c_ask_for_code(catalog_tg_url: str) -> str:
+    """Template C: Ask user for code in 2-step DM support flow."""
+    return f"""
+{_build_section_header("TEMPLATE C — Ask for code (DM support)")}
+
+Use for: inbound phrases like "цена", "сколько", "хочу", "купить"
+Goal: ask user for post code, then call /v1/mc/resolve
+
+1️⃣ TRIGGER
+   User sends message matching marketing intent (price/buy/want phrases)
+
+2️⃣ SEND MESSAGE
+   "Напиши код из поста (например: LKHZLTQN). Код в описании/первом комменте."
+   Button: "Открыть каталог" → {catalog_tg_url}
+
+3️⃣ COLLECT CODE + REQUEST
+   Option 1 (recommended, ManyChat Pro):
+   • Use User Input / Collect Input block
+   • Save into custom field: sb_code_input
+   • External Request body text = {{sb_code_input}}
+
+   Option 2 (if User Input unavailable):
+   • Make second automation: Trigger = User sends any message
+   • Condition: sb_waiting_code = true
+   • External Request body text = incoming message
+   • Then set sb_waiting_code = false
+
+4️⃣ NOTE
+   • Code-only works when RESOLVE_ALLOW_CODE_ONLY=true
+   • Keywords remain optional but help when code is ambiguous
+"""
+
 def _build_mode0_section(url: str, tg_url: str) -> str:
     """Mode 0: Direct shortlink - ManyChat not required."""
     return f"""\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -250,6 +293,8 @@ def build_manychat_snippet(
     keyword_product: str = "BUY",
     keyword_look: str = "LOOK",
     keyword_catalog: str = "CAT",
+    look_prefix: str = "LOOK_",
+    resolve_require_keyword: bool = False,
 ) -> str:
     """Build mode-aware ManyChat integration snippet.
     
@@ -263,12 +308,12 @@ def build_manychat_snippet(
     
     # Header with mode/kind info
     lines = [
-        f"🔧 ManyChat Integration Pack",
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "🔧 ManyChat Integration Pack",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         f"Mode: {mode_str or '—'} | Kind: {kind_str}",
         f"Channel: {channel} | Ref: {content_ref or '(dynamic)'}",
         "",
-        f"Preview URLs:",
+        "Preview URLs:",
         f"├─ Shortlink: {url}",
         f"└─ Telegram:  {tg_url}",
     ]
@@ -287,6 +332,7 @@ def build_manychat_snippet(
         lines.append(_build_mode0_section(url, tg_url))
         # Still show Template A as optional
         lines.append(_build_template_a_mode2(channel, content_ref, mc_resolve_url, mc_token))
+        lines.append(_build_template_c_ask_for_code(build_tg_link_for_catalog(tg_url)))
     
     elif mode_str == "1":
         # Mode 1: Keyword DM - show Template B (primary) + Template A (optional)
@@ -301,10 +347,12 @@ def build_manychat_snippet(
             "💡 Alternative: Use Template A if also using post triggers.",
         ])
         lines.append(_build_template_a_mode2(channel, content_ref, mc_resolve_url, mc_token))
+        lines.append(_build_template_c_ask_for_code(build_tg_link_for_catalog(tg_url)))
     
     elif mode_str == "2":
         # Mode 2: Post/Story/Comment - show Template A (primary)
         lines.append(_build_template_a_mode2(channel, content_ref, mc_resolve_url, mc_token))
+        lines.append(_build_template_c_ask_for_code(build_tg_link_for_catalog(tg_url)))
         lines.extend([
             "",
             "─" * 40,
@@ -323,6 +371,7 @@ def build_manychat_snippet(
             "Mode not specified. Showing both templates:",
         ])
         lines.append(_build_template_a_mode2(channel, content_ref, mc_resolve_url, mc_token))
+        lines.append(_build_template_c_ask_for_code(build_tg_link_for_catalog(tg_url)))
         lines.append(_build_template_b_mode1(
             channel, content_ref, mc_resolve_url, mc_token,
             keyword_product, keyword_look, keyword_catalog,
@@ -330,6 +379,6 @@ def build_manychat_snippet(
         ))
     
     # Keyword configuration section at the end
-    lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog))
+    lines.append(build_keyword_config_section(keyword_product, keyword_look, keyword_catalog, look_prefix, resolve_require_keyword))
     
     return "\n".join(lines)

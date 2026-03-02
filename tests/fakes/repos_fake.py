@@ -6,6 +6,7 @@ from types import SimpleNamespace
 class FakeContentMapRepo:
     def __init__(self):
         self.dynamic: dict[str, SimpleNamespace] = {}
+        self.active_start_params: set[str] = {"BOIZMRJS", "LOOK_LKHZLTQN"}
 
     async def find_active_by_channel_ref(self, channel: str, content_ref: str):
         if content_ref == "campaign:hit":
@@ -20,6 +21,9 @@ class FakeContentMapRepo:
 
     async def count_dynamic_created_last_24h(self) -> int:
         return 0
+
+    async def exists_active_start_param(self, start_param: str) -> bool:
+        return start_param in self.active_start_params or any(item.start_param == start_param for item in self.dynamic.values())
 
     async def find_active_by_slug(self, slug: str):
         if slug == "dress1":

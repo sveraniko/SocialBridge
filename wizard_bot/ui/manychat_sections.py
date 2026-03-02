@@ -41,6 +41,8 @@ class ManyChatContext:
     keyword_product: str
     keyword_look: str
     keyword_catalog: str
+    look_prefix: str = "LOOK_"
+    resolve_require_keyword: bool = False
 
 
 def is_token_placeholder(token: str) -> bool:
@@ -296,8 +298,11 @@ Configured keywords:
 {fmt("KEYWORD_CATALOG", ctx.keyword_catalog, "CAT")}
 
 ⚠️ IMPORTANT:
-Deep link prefix 'LOOK_' is hardcoded in SIS.
+LOOK payload prefix in SIS is configurable via WIZARD_LOOK_PREFIX.
 Changing KEYWORD_LOOK affects user input only.
+
+Strict mode (require keyword): {ctx.resolve_require_keyword}
+LOOK prefix: {ctx.look_prefix}
 
 URL: {ctx.url}
 TG:  {ctx.tg_url}"""

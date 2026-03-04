@@ -5,7 +5,7 @@ from wizard_bot.ui.keyboards import (
     slug_choice_keyboard,
     step_back_cancel_keyboard,
 )
-from wizard_bot.ui.manychat import build_keyword_config_section, build_manychat_snippet
+from wizard_bot.ui.manychat import build_keyword_config_section
 from wizard_bot.wizard.state import ensure_campaign_key
 
 MODE_TEXT = {
@@ -118,29 +118,20 @@ async def render_step(panel, chat_id: int, data: dict, settings=None) -> None:
                 )
             )
         else:
-            lines.append("Post-specific campaign mapping (comment\u2192DM).")
-            # Compute tg_url with fallback
+            # Mode 2: Post-specific campaign mapping
+            # Show compact summary (full snippet available via "ManyChat Snippet" in campaign view)
             _tg_url = item.get("tg_url")
             if not _tg_url and data.get("start_param") and getattr(settings, "WIZARD_SIS_BOT_USERNAME", ""):
                 _tg_url = f"https://t.me/{settings.WIZARD_SIS_BOT_USERNAME}?start={data.get('start_param')}"
-            lines.extend(
-                build_manychat_snippet(
-                    channel="ig",
-                    content_ref=f"campaign:{key}",
-                    url=shortlink,
-                    tg_url=str(_tg_url or "-"),
-                    mc_resolve_url=getattr(settings, "WIZARD_MC_RESOLVE_URL", "https://your-domain.com/v1/mc/resolve"),
-                    mc_token=getattr(settings, "WIZARD_MC_TOKEN", "<YOUR_MC_TOKEN>"),
-                    mode=mode,
-                    kind=data.get("kind"),
-                    start_param=data.get("start_param"),
-                    keyword_product=keyword_product,
-                    keyword_look=keyword_look,
-                    keyword_catalog=keyword_catalog,
-                    look_prefix=getattr(settings, "WIZARD_LOOK_PREFIX", "LOOK_"),
-                    resolve_require_keyword=getattr(settings, "WIZARD_RESOLVE_REQUIRE_KEYWORD", False),
-                ).splitlines()
-            )
+            lines.extend([
+                "Post-specific campaign mapping (comment→DM).",
+                "",
+                f"📋 content_ref: campaign:{key}",
+                f"🔗 Shortlink: {shortlink}",
+                f"📲 Telegram: {_tg_url or '-'}",
+                "",
+                "Use 'ManyChat Snippet' button in Campaigns to view full integration pack.",
+            ])
         status_line = data.get("result_status")
         if status_line:
             lines.extend(["", status_line])
